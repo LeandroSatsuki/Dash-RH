@@ -24,7 +24,25 @@ def criar(payload: BeneficioCreate, db: Session = Depends(get_db), user=Depends(
     return crud.criar(db, payload.model_dump(), user.id)
 
 
+@router.patch("/{beneficio_id}", response_model=BeneficioOut)
+def editar(beneficio_id: int, payload: BeneficioUpdate, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    require_permission(user, "beneficios:update")
+    return crud.editar(db, beneficio_id, payload.model_dump(exclude_none=True), user.id)
+
+
 @router.post("/vinculos", response_model=ColaboradorBeneficioOut)
 def vincular(payload: ColaboradorBeneficioCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
     require_permission(user, "beneficios:update")
     return crud.vincular_ao_colaborador(db, payload.model_dump(), user.id)
+
+
+@router.patch("/vinculos/{vinculo_id}", response_model=ColaboradorBeneficioOut)
+def editar_vinculo(vinculo_id: int, payload: dict, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    require_permission(user, "beneficios:update")
+    return crud.editar_vinculo(db, vinculo_id, payload, user.id)
+
+
+@router.post("/vinculos/{vinculo_id}/encerrar", response_model=ColaboradorBeneficioOut)
+def encerrar_vinculo(vinculo_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    require_permission(user, "beneficios:update")
+    return crud.encerrar_vinculo(db, vinculo_id, user.id)

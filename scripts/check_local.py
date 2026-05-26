@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ MODULES = [
     "dashboard.app",
     "operational_app.app",
     "src.api.main",
+    "alembic",
 ]
 
 
@@ -31,9 +33,42 @@ def run_pytest() -> None:
         raise SystemExit(result.returncode)
 
 
+def check_api_health() -> None:
+    app_module = importlib.import_module("src.api.main")
+    assert app_module.health() == {"status": "ok"}
+    print("[ok] api health")
+
+
+def check_seed_blocked_in_production() -> None:
+    seed_module = importlib.import_module("scripts.seed_demo")
+    previous = os.environ.get("APP_ENV")
+    os.environ["APP_ENV"] = "production"
+    try:
+        try:
+            seed_module.ensure_not_production()
+            raise AssertionError("Seed demo deveria falhar em producao.")
+        except RuntimeError:
+            print("[ok] seed bloqueado em producao")
+    finally:
+        if previous is None:
+            os.environ.pop("APP_ENV", None)
+        else:
+            os.environ["APP_ENV"] = previous
+
+
+def check_permissions() -> None:
+    permissions = importlib.import_module("src.auth.permissions")
+    assert permissions.has_permission("admin", "folha:update")
+    assert not permissions.has_permission("visualizador", "folha:update")
+    print("[ok] permissoes basicas")
+
+
 def main() -> None:
     run_pytest()
     check_imports()
+    check_api_health()
+    check_seed_blocked_in_production()
+    check_permissions()
     print("[ok] check_local concluido")
 
 

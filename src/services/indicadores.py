@@ -1,42 +1,61 @@
 from __future__ import annotations
 
-from datetime import date
+from collections import defaultdict
+from datetime import date, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.crud import folha as crud_folha
-from src.db.models import Afastamento, Colaborador, ColaboradorBeneficio, CompetenciaFolha, Documento, Ferias, LancamentoFolha
-from src.utils.money import decimal_to_float_for_chart
+from src.db.models import (
+    Afastamento,
+    Beneficio,
+    CentroCusto,
+    Colaborador,
+    ColaboradorBeneficio,
+    CompetenciaFolha,
+    Departamento,
+    Documento,
+    Ferias,
+    LancamentoFolha,
+)
 
 
 def _safe_divide(numerator: float | int | None, denominator: float | int | None) -> float:
-    if numerator in (None, 0) and denominator in (None, 0):
-        return 0.0
     if denominator in (None, 0):
         return 0.0
     return float(numerator or 0) / float(denominator)
+
+
+def _colaborador_filters(
+    *,
+    departamento_id: int | None = None,
+    centro_custo_id: int | None = None,
+    regime_contratual: str | None = None,
+    status: str | None = None,
+):
+    filters = [Colaborador.deletado_em.is_(None)]
+    if departamento_id:
+        filters.append(Colaborador.departamento_id == departamento_id)
+    if centro_custo_id:
+        filters.append(Colaborador.centro_custo_id == centro_custo_id)
+    if regime_contratual:
+        filters.append(Colaborador.regime_contratual == regime_contratual)
+    if status:
+        filters.append(Colaborador.status == status)
+    return filters
 
 
 def headcount_ativo(db: Session) -> int:
     return db.scalar(select(func.count()).select_from(Colaborador).where(Colaborador.deletado_em.is_(None), Colaborador.status == "ativo")) or 0
 
 
-def headcount_por_area(db: Session) -> list[dict]:
-    rows = db.execute(
-        select(Colaborador.departamento_id, func.count())
-        .where(Colaborador.deletado_em.is_(None), Colaborador.status == "ativo")
-        .group_by(Colaborador.departamento_id)
-    ).all()
-    return [{"departamento_id": row[0], "total": row[1]} for row in rows]
-
-
 def admissoes_no_mes(db: Session, competencia: str) -> int:
-    return db.scalar(select(func.count()).select_from(Colaborador).where(func.strftime("%Y-%m", Colaborador.data_admissao) == competencia)) or 0
+    return db.scalar(select(func.count()).select_from(Colaborador).where(Colaborador.deletado_em.is_(None), func.strftime("%Y-%m", Colaborador.data_admissao) == competencia)) or 0
 
 
 def desligamentos_no_mes(db: Session, competencia: str) -> int:
-    return db.scalar(select(func.count()).select_from(Colaborador).where(func.strftime("%Y-%m", Colaborador.data_desligamento) == competencia)) or 0
+    return db.scalar(select(func.count()).select_from(Colaborador).where(Colaborador.deletado_em.is_(None), func.strftime("%Y-%m", Colaborador.data_desligamento) == competencia)) or 0
 
 
 def saldo_headcount(admissoes: int, desligamentos: int) -> int:
@@ -51,8 +70,11 @@ def turnover(admissoes: int, desligamentos: int, efetivo_medio_valor: float) -> 
     return _safe_divide((admissoes + desligamentos) / 2, efetivo_medio_valor)
 
 
-def afastamentos_em_dias(db: Session) -> float:
-    return float(db.scalar(select(func.coalesce(func.sum(Afastamento.quantidade_dias), 0)).where(Afastamento.deletado_em.is_(None))) or 0)
+def afastamentos_em_dias(db: Session, competencia: str | None = None) -> float:
+    stmt = select(func.coalesce(func.sum(Afastamento.quantidade_dias), 0)).where(Afastamento.deletado_em.is_(None))
+    if competencia:
+        stmt = stmt.where(func.strftime("%Y-%m", Afastamento.data_inicio) == competencia)
+    return float(db.scalar(stmt) or 0)
 
 
 def faltas(db: Session) -> int:
@@ -110,16 +132,6 @@ def custo_por_colaborador(db: Session, competencia_id: int | None = None) -> flo
     return _safe_divide(custo_total_empresa(db, competencia_id), headcount_ativo(db))
 
 
-def custo_por_centro_custo(db: Session, competencia_id: int | None = None) -> list[dict]:
-    rows = db.execute(
-        select(Colaborador.centro_custo_id, func.coalesce(func.sum(LancamentoFolha.valor), 0))
-        .join(Colaborador, Colaborador.id == LancamentoFolha.colaborador_id)
-        .where(LancamentoFolha.deletado_em.is_(None))
-        .group_by(Colaborador.centro_custo_id)
-    ).all()
-    return [{"centro_custo_id": row[0], "valor": float(row[1] or 0)} for row in rows]
-
-
 def colaboradores_com_dados_incompletos(db: Session) -> int:
     return db.scalar(
         select(func.count())
@@ -138,16 +150,12 @@ def colaboradores_com_dados_incompletos(db: Session) -> int:
 
 def indicadores_dashboard(db: Session, competencia: str | None = None) -> dict:
     competencia_obj = None
-    if competencia:
-        adm = admissoes_no_mes(db, competencia)
-        desl = desligamentos_no_mes(db, competencia)
-        competencia_obj = db.scalar(select(CompetenciaFolha).where(CompetenciaFolha.competencia == competencia))
-    else:
+    if not competencia:
         today = date.today()
         competencia = f"{today.year:04d}-{today.month:02d}"
-        adm = admissoes_no_mes(db, competencia)
-        desl = desligamentos_no_mes(db, competencia)
-        competencia_obj = db.scalar(select(CompetenciaFolha).where(CompetenciaFolha.competencia == competencia))
+    adm = admissoes_no_mes(db, competencia)
+    desl = desligamentos_no_mes(db, competencia)
+    competencia_obj = db.scalar(select(CompetenciaFolha).where(CompetenciaFolha.competencia == competencia))
     hc = headcount_ativo(db)
     efetivo = efetivo_medio(max(hc - adm + desl, 0), hc)
     competencia_id = competencia_obj.id if competencia_obj else None
@@ -170,3 +178,120 @@ def indicadores_dashboard(db: Session, competencia: str | None = None) -> dict:
         "colaboradores_com_dados_incompletos": colaboradores_com_dados_incompletos(db),
         "documentos_pendentes": db.scalar(select(func.count()).select_from(Documento).where(Documento.deletado_em.is_(None), Documento.status != "ativo")) or 0,
     }
+
+
+def indicadores_operacionais(
+    db: Session,
+    *,
+    ano: int | None = None,
+    mes: int | None = None,
+    departamento_id: int | None = None,
+    centro_custo_id: int | None = None,
+    regime_contratual: str | None = None,
+    status_colaborador: str | None = None,
+) -> dict:
+    today = date.today()
+    ano = ano or today.year
+    mes = mes or today.month
+    competencia = f"{ano:04d}-{mes:02d}"
+    filters = _colaborador_filters(
+        departamento_id=departamento_id,
+        centro_custo_id=centro_custo_id,
+        regime_contratual=regime_contratual,
+        status=status_colaborador,
+    )
+    colaboradores = list(db.scalars(select(Colaborador).where(*filters)).all())
+    competencia_obj = db.scalar(select(CompetenciaFolha).where(CompetenciaFolha.competencia == competencia))
+    competencia_id = competencia_obj.id if competencia_obj else None
+
+    ativos = [c for c in colaboradores if c.status == "ativo"]
+    admissoes_mes = [c for c in colaboradores if c.data_admissao and c.data_admissao.strftime("%Y-%m") == competencia]
+    desligamentos_mes = [c for c in colaboradores if c.data_desligamento and c.data_desligamento.strftime("%Y-%m") == competencia]
+    afastados_ativos = [c for c in colaboradores if c.status == "afastado"]
+    ferias_vencer = [
+        f for f in list_records_like_ferias(db)
+        if f.data_limite_gozo and 0 <= (f.data_limite_gozo - today).days <= 90 and _match_colaborador(colaboradores, f.colaborador_id)
+    ]
+
+    custo_departamento = defaultdict(float)
+    rubrica_totais = defaultdict(float)
+    lancamentos = db.scalars(select(LancamentoFolha).where(LancamentoFolha.deletado_em.is_(None))).all()
+    colaboradores_map = {c.id: c for c in colaboradores}
+    rubricas_map = {r.id: r for r in db.scalars(select(Beneficio)).all()}
+    for lancamento in lancamentos:
+        colaborador = colaboradores_map.get(lancamento.colaborador_id)
+        if colaborador is None:
+            continue
+        custo_departamento[colaborador.departamento_id or 0] += float(lancamento.valor or 0)
+        rubrica_totais[lancamento.rubrica_id] += float(lancamento.valor or 0)
+
+    headcount_por_departamento = []
+    departamentos_map = {d.id: d.nome for d in db.scalars(select(Departamento)).all()}
+    for dept_id, total in db.execute(
+        select(Colaborador.departamento_id, func.count())
+        .where(*filters)
+        .group_by(Colaborador.departamento_id)
+    ).all():
+        headcount_por_departamento.append({"departamento": departamentos_map.get(dept_id, "Sem departamento"), "total": int(total or 0)})
+
+    movimentos = []
+    for offset in range(5, -1, -1):
+        ref = date(ano, mes, 1) - timedelta(days=offset * 30)
+        comp = ref.strftime("%Y-%m")
+        movimentos.append({"competencia": comp, "admissoes": admissoes_no_mes(db, comp), "desligamentos": desligamentos_no_mes(db, comp)})
+
+    afastamentos_tipo = []
+    for tipo, total in db.execute(
+        select(Afastamento.tipo, func.count())
+        .where(Afastamento.deletado_em.is_(None), func.strftime("%Y-%m", Afastamento.data_inicio) == competencia)
+        .group_by(Afastamento.tipo)
+    ).all():
+        afastamentos_tipo.append({"tipo": tipo, "total": int(total or 0)})
+
+    ferias_status = []
+    for status, total in db.execute(
+        select(Ferias.status, func.count()).where(Ferias.deletado_em.is_(None)).group_by(Ferias.status)
+    ).all():
+        ferias_status.append({"status": status, "total": int(total or 0)})
+
+    custo_por_departamento = [
+        {"departamento": departamentos_map.get(dept_id, "Sem departamento"), "valor": valor}
+        for dept_id, valor in custo_departamento.items()
+    ]
+    custo_por_rubrica = [{"rubrica_id": rubrica_id, "valor": valor} for rubrica_id, valor in rubrica_totais.items()]
+
+    return {
+        "competencia": competencia,
+        "kpis": {
+            "colaboradores_ativos": len(ativos),
+            "admissoes_mes": len(admissoes_mes),
+            "desligamentos_mes": len(desligamentos_mes),
+            "saldo_headcount": len(admissoes_mes) - len(desligamentos_mes),
+            "turnover": turnover(len(admissoes_mes), len(desligamentos_mes), efetivo_medio(max(len(ativos) - len(admissoes_mes) + len(desligamentos_mes), 0), len(ativos))),
+            "afastados_ativos": len(afastados_ativos),
+            "dias_afastamento_mes": afastamentos_em_dias(db, competencia),
+            "ferias_vencidas": ferias_vencidas(db),
+            "ferias_a_vencer": len(ferias_vencer),
+            "folha_bruta": folha_bruta(db, competencia_id),
+            "custo_total_competencia": custo_total_empresa(db, competencia_id),
+            "beneficios_ativos": db.scalar(select(func.count()).select_from(ColaboradorBeneficio).where(ColaboradorBeneficio.status == "ativo")) or 0,
+            "custo_beneficios": total_beneficios(db),
+            "problemas_criticos_qualidade": colaboradores_com_dados_incompletos(db),
+        },
+        "graficos": {
+            "headcount_por_departamento": headcount_por_departamento,
+            "admissoes_desligamentos_mes": movimentos,
+            "afastamentos_por_tipo": afastamentos_tipo,
+            "ferias_por_status": ferias_status,
+            "custo_por_rubrica": custo_por_rubrica,
+            "custo_por_departamento": custo_por_departamento,
+        },
+    }
+
+
+def list_records_like_ferias(db: Session) -> list[Ferias]:
+    return list(db.scalars(select(Ferias).where(Ferias.deletado_em.is_(None))).all())
+
+
+def _match_colaborador(colaboradores: list[Colaborador], colaborador_id: int) -> bool:
+    return any(item.id == colaborador_id for item in colaboradores)

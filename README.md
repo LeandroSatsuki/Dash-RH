@@ -3,11 +3,7 @@
 Sistema hibrido de RH/DP com duas frentes:
 
 1. Dashboard legado e pipeline analitico por planilhas.
-2. Mini ERP operacional com banco de dados, autenticacao, CRUD, auditoria e importacao legada.
-
-## Objetivo
-
-Reduzir a dependencia de planilhas para registros operacionais de RH/DP, mantendo compatibilidade com o legado e sem remover o dashboard atual.
+2. Mini ERP operacional com banco de dados, autenticacao, CRUD, auditoria e fluxos reais de DP/RH.
 
 ## Instalacao
 
@@ -19,7 +15,7 @@ python -m pip install -r requirements.txt
 
 Crie um `.env` a partir de `.env.example`.
 
-Exemplo para SQLite local:
+SQLite local:
 
 ```env
 DATABASE_URL=sqlite:///./data/app/dash_rh.db
@@ -31,7 +27,7 @@ ADMIN_EMAIL=admin@local.test
 ADMIN_PASSWORD=Admin@123
 ```
 
-Exemplo para PostgreSQL:
+PostgreSQL:
 
 ```env
 DATABASE_URL=postgresql+psycopg://dashrh_user:change-me@localhost:5432/dash_rh
@@ -45,75 +41,74 @@ ADMIN_PASSWORD=uma-senha-forte
 
 ## Banco e admin
 
-Inicializacao simples para desenvolvimento:
-
 ```bash
 python -m src.db.init_db
 ```
 
-Regras de seguranca do admin inicial:
+Regras:
 
-- Em `APP_ENV=development`, o sistema aceita fallback de `ADMIN_EMAIL` e `ADMIN_PASSWORD`.
-- Em qualquer ambiente fora de `development`, `ADMIN_PASSWORD` e obrigatoria.
-- Em `APP_ENV=production`, a senha `Admin@123` e bloqueada.
-- A senha nunca e impressa em logs.
+- Em `development`, fallback do admin inicial e permitido.
+- Fora de `development`, `ADMIN_EMAIL` e `ADMIN_PASSWORD` sao obrigatorios.
+- Em `production`, `Admin@123` e bloqueada.
 
-## Migracoes Alembic
-
-Gerar uma nova revisao:
+## Migracoes
 
 ```bash
-alembic revision --autogenerate -m "initial schema"
-```
-
-Aplicar migracoes:
-
-```bash
+alembic revision --autogenerate -m "descricao"
 alembic upgrade head
 ```
 
-Use `init_db` para bootstrap local rapido e `alembic` para ambientes compartilhados e controle versionado.
+## Seed demo
 
-## Pipeline legado
+Para demonstracao local com dados totalmente ficticios:
+
+```bash
+python scripts/seed_demo.py
+```
+
+O seed:
+
+- cria empresa fake, estrutura organizacional, colaboradores ficticios, beneficios, ferias, afastamentos, desligamentos, folha e auditoria
+- grava documentos demo sem conteudo sensivel real
+- e bloqueado em `APP_ENV=production`
+
+## Fluxo operacional
+
+Fluxos principais desta fase:
+
+- admissao com pre-cadastro, checklist, conclusao e historico funcional
+- ferias com solicitacao, aprovacao, cancelamento e conclusao
+- afastamentos com retorno, documento e impacto operacional
+- beneficios com vinculo, custo e encerramento
+- folha por competencia com snapshot, bloqueio de fechamento e exportacao
+- desligamento com conclusao, encerramento de beneficios e historico
+- indicadores operacionais vindos do banco
+
+## Execucao
+
+Pipeline legado:
 
 ```bash
 python main.py
 ```
 
-## Dashboard legado
+Dashboard legado:
 
 ```bash
 streamlit run dashboard/app.py
 ```
 
-## App operacional
+App operacional:
 
 ```bash
 streamlit run operational_app/app.py
 ```
 
-O app operacional exige login antes de exibir paginas ou dados.
-
-## API FastAPI
+API:
 
 ```bash
 uvicorn src.api.main:app --reload
 ```
-
-Healthcheck:
-
-```bash
-curl http://127.0.0.1:8000/health
-```
-
-## Fluxo de importacao
-
-1. Acesse o app operacional.
-2. Abra `Configuracoes`.
-3. Faca upload da planilha legada.
-4. Revise validacoes e erros.
-5. Execute a importacao.
-6. Consulte a auditoria e o relatorio final.
 
 ## Testes e check local
 
@@ -124,9 +119,8 @@ python scripts/check_local.py
 
 ## Seguranca e LGPD
 
-- Planilhas, uploads, bancos locais e `.env` permanecem fora do Git.
-- CPF, CNPJ, e-mail, telefone, salario e dados medicos permanecem mascarados por padrao.
-- Senhas usam hash seguro.
-- Alteracoes criticas e eventos de autenticacao sao auditados.
-- Uploads ficam restritos a `UPLOAD_DIR`, com extensoes permitidas e hash SHA256.
-- O modulo de eSocial gera apenas preparacao e validacao interna, sem envio oficial automatico.
+- Login obrigatorio permanece ativo no app operacional.
+- CPF, CNPJ, e-mail, telefone, salario e dados medicos permanecem mascarados por padrao na interface.
+- Uploads usam validacao de extensao, tamanho e path seguro.
+- Operacoes criticas registram auditoria.
+- Planilhas, `.env`, bancos locais e uploads permanecem fora do Git.
