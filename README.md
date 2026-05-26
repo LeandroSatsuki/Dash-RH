@@ -69,6 +69,7 @@ python scripts/seed_demo.py
 O seed:
 
 - cria empresa fake, estrutura organizacional, colaboradores ficticios, beneficios, ferias, afastamentos, desligamentos, folha e auditoria
+- inclui jornadas, turnos, marcacoes de ponto, apuracoes, banco de horas, documentos obrigatorios, SST e alertas
 - grava documentos demo sem conteudo sensivel real
 - e bloqueado em `APP_ENV=production`
 
@@ -83,6 +84,12 @@ Fluxos principais desta fase:
 - folha por competencia com snapshot, bloqueio de fechamento e exportacao
 - desligamento com conclusao, encerramento de beneficios e historico
 - indicadores operacionais vindos do banco
+- jornadas e escalas semanais
+- ponto operacional interno para conferencia e apoio a folha
+- banco de horas operacional
+- documentos obrigatorios por regime/cargo/departamento
+- SST base com exames, EPI, treinamentos e alertas
+- importacao generica de ponto por CSV/Excel
 
 ## Execucao
 
@@ -124,3 +131,9 @@ python scripts/check_local.py
 - Uploads usam validacao de extensao, tamanho e path seguro.
 - Operacoes criticas registram auditoria.
 - Planilhas, `.env`, bancos locais e uploads permanecem fora do Git.
+
+## Ponto operacional
+
+- O modulo de jornada/ponto e operacional interno.
+- Ele nao declara conformidade legal com REP-C, REP-A ou REP-P.
+- Importacoes de ponto devem ser conferidas pelo DP antes de reflexo operacional.

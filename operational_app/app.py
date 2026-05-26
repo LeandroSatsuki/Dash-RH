@@ -24,6 +24,12 @@ PAGES = {
     "Configuracoes": {"file": "12_configuracoes.py", "permission": "documentos:create"},
     "Qualidade Operacional": {"file": "13_qualidade_operacional.py", "permission": "qualidade:view"},
     "Auditoria": {"file": "14_auditoria.py", "permission": "auditoria:view"},
+    "Jornadas": {"file": "15_jornadas.py", "permission": "jornadas:view"},
+    "Ponto": {"file": "16_ponto.py", "permission": "ponto:view"},
+    "Banco de Horas": {"file": "17_banco_horas.py", "permission": "banco_horas:view"},
+    "Documentos Obrigatorios": {"file": "18_documentos_obrigatorios.py", "permission": "documentos_obrigatorios:view"},
+    "SST": {"file": "19_sst.py", "permission": "sst:view"},
+    "Alertas": {"file": "20_alertas.py", "permission": "alertas:view"},
 }
 
 
@@ -42,31 +48,41 @@ def render_home(user: dict):
     from sqlalchemy import func, select
 
     from operational_app.common import db_session
-    from src.db.models import CompetenciaFolha
+    from src.db.models import CompetenciaFolha, DocumentoPendencia, ExameOcupacional
+    from src.services import alerts
     from src.services.data_quality import generate_operational_quality_report
-    from src.services.indicadores import indicadores_dashboard
+    from src.services.indicadores import indicadores_dashboard, indicadores_operacionais
 
     st.subheader("Home")
     with db_session() as db:
+        alerts.gerar_alertas(db)
         indicadores = indicadores_dashboard(db)
+        operacionais = indicadores_operacionais(db)
         quality_issues = generate_operational_quality_report(db)
         competencias_abertas = db.scalar(
             select(func.count())
             .select_from(CompetenciaFolha)
             .where(CompetenciaFolha.status.in_(["aberta", "reaberta", "em_conferencia"]))
         ) or 0
+        documentos_pendentes = db.scalar(select(func.count()).select_from(DocumentoPendencia).where(DocumentoPendencia.status == "pendente")) or 0
+        exames_vencidos = db.scalar(select(func.count()).select_from(ExameOcupacional).where(ExameOcupacional.data_validade.is_not(None), ExameOcupacional.data_validade < func.current_date())) or 0
 
     cards = [
         ("Colaboradores ativos", indicadores["headcount_ativo"]),
         ("Admissoes pendentes", indicadores["admissoes"]),
-        ("Ferias vencidas", indicadores["ferias_vencidas"]),
-        ("Afastados", indicadores["afastamentos_em_dias"]),
+        ("Ferias a vencer", operacionais["kpis"]["ferias_a_vencer"]),
+        ("Afastados", operacionais["kpis"]["afastados_ativos"]),
+        ("Documentos pendentes", documentos_pendentes),
+        ("Exames vencidos", exames_vencidos),
+        ("Ponto inconsistente", int(operacionais["kpis"]["taxa_inconsistencia_ponto"] * 100)),
         ("Competencias abertas", competencias_abertas),
         ("Problemas criticos", len([item for item in quality_issues if item["severidade"] == "critica"])),
+        ("Alertas criticos", indicadores["alertas_criticos"]),
     ]
     cols = st.columns(3)
     for idx, (label, value) in enumerate(cards):
         cols[idx % 3].metric(label, value)
+    st.markdown("**Pendencias operacionais**")
     st.dataframe(quality_issues[:20], use_container_width=True)
 
 

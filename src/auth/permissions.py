@@ -17,21 +17,32 @@ PERMISSIONS = {
         "folha:create", "folha:update", "folha:view",
         "desligamentos:create", "desligamentos:update", "desligamentos:view",
         "documentos:create", "documentos:update", "documentos:view",
+        "jornadas:view", "jornadas:create", "jornadas:update",
+        "ponto:view", "ponto:create", "ponto:update", "ponto:approve",
+        "banco_horas:view", "banco_horas:update",
+        "documentos_obrigatorios:view", "documentos_obrigatorios:update",
+        "sst:view", "sst:create", "sst:update",
+        "alertas:view", "alertas:update",
         "indicadores:view", "auditoria:view", "qualidade:view",
     },
     "rh": {
         "departamentos:view", "cargos:view", "centros_custo:view",
         "colaboradores:view", "admissoes:view", "ferias:view", "afastamentos:view",
         "documentos:view_limited", "beneficios:view", "indicadores:view", "qualidade:view",
+        "jornadas:view", "documentos_obrigatorios:view", "alertas:view", "sst:view",
     },
-    "gestor": {"colaboradores:view_area", "ferias:create", "ferias:view", "indicadores:view_area", "qualidade:view"},
+    "gestor": {
+        "colaboradores:view_area", "ferias:create", "ferias:view", "indicadores:view_area", "qualidade:view",
+        "ponto:view", "alertas:view", "jornadas:view",
+    },
     "financeiro": {
         "centros_custo:view", "centros_custo:create", "centros_custo:update",
         "beneficios:view", "beneficios:costs", "folha:view", "folha:create", "folha:update", "custos:view",
+        "banco_horas:view", "indicadores:view",
     },
-    "diretoria": {"indicadores:view", "custos:view", "colaboradores:view_masked", "qualidade:view"},
-    "auditor": {"auditoria:view", "logs:view", "colaboradores:view_masked", "documentos:view_limited", "qualidade:view"},
-    "visualizador": {"indicadores:view", "colaboradores:view_masked"},
+    "diretoria": {"indicadores:view", "custos:view", "colaboradores:view_masked", "qualidade:view", "alertas:view"},
+    "auditor": {"auditoria:view", "logs:view", "colaboradores:view_masked", "documentos:view_limited", "qualidade:view", "alertas:view"},
+    "visualizador": {"indicadores:view", "colaboradores:view_masked", "alertas:view"},
 }
 
 

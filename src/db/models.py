@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, Time
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.db.database import Base
@@ -314,3 +314,223 @@ class FolhaSnapshot(Base):
     quantidade_colaboradores: Mapped[int | None] = mapped_column(Integer)
     criado_em: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive, nullable=False)
     usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+
+
+class Jornada(Base, TimestampMixin, SoftDeleteMixin):
+    __tablename__ = "jornadas"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    nome: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    descricao: Mapped[str | None] = mapped_column(Text)
+    carga_horaria_semanal: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    carga_horaria_diaria: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    tolerancia_entrada_minutos: Mapped[int | None] = mapped_column(Integer)
+    tolerancia_saida_minutos: Mapped[int | None] = mapped_column(Integer)
+    intervalo_minimo_minutos: Mapped[int | None] = mapped_column(Integer)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+class Turno(Base, TimestampMixin, SoftDeleteMixin):
+    __tablename__ = "turnos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    jornada_id: Mapped[int] = mapped_column(ForeignKey("jornadas.id"), nullable=False)
+    dia_semana: Mapped[int] = mapped_column(Integer, nullable=False)
+    hora_entrada: Mapped[time | None] = mapped_column(Time)
+    hora_saida_intervalo: Mapped[time | None] = mapped_column(Time)
+    hora_retorno_intervalo: Mapped[time | None] = mapped_column(Time)
+    hora_saida: Mapped[time | None] = mapped_column(Time)
+    descanso: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    noturno: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
+class ColaboradorJornada(Base, TimestampMixin):
+    __tablename__ = "colaborador_jornadas"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    colaborador_id: Mapped[int] = mapped_column(ForeignKey("colaboradores.id"), nullable=False)
+    jornada_id: Mapped[int] = mapped_column(ForeignKey("jornadas.id"), nullable=False)
+    data_inicio: Mapped[date] = mapped_column(Date, nullable=False)
+    data_fim: Mapped[date | None] = mapped_column(Date)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    observacao: Mapped[str | None] = mapped_column(Text)
+
+
+class MarcacaoPonto(Base, TimestampMixin, SoftDeleteMixin):
+    __tablename__ = "marcacoes_ponto"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    colaborador_id: Mapped[int] = mapped_column(ForeignKey("colaboradores.id"), nullable=False)
+    data: Mapped[date] = mapped_column(Date, nullable=False)
+    tipo: Mapped[str] = mapped_column(String(50), nullable=False)
+    horario: Mapped[time] = mapped_column(Time, nullable=False)
+    origem: Mapped[str] = mapped_column(String(50), nullable=False, default="manual")
+    observacao: Mapped[str | None] = mapped_column(Text)
+    usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+
+
+class ApuracaoPonto(Base, TimestampMixin):
+    __tablename__ = "apuracoes_ponto"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    colaborador_id: Mapped[int] = mapped_column(ForeignKey("colaboradores.id"), nullable=False)
+    data: Mapped[date] = mapped_column(Date, nullable=False)
+    jornada_id: Mapped[int | None] = mapped_column(ForeignKey("jornadas.id"))
+    horas_previstas: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    horas_trabalhadas: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    horas_extras: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    horas_faltantes: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    atraso_minutos: Mapped[int | None] = mapped_column(Integer)
+    saida_antecipada_minutos: Mapped[int | None] = mapped_column(Integer)
+    adicional_noturno_horas: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    falta: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="pendente", nullable=False)
+
+
+class AjustePonto(Base, TimestampMixin):
+    __tablename__ = "ajustes_ponto"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    colaborador_id: Mapped[int] = mapped_column(ForeignKey("colaboradores.id"), nullable=False)
+    data: Mapped[date] = mapped_column(Date, nullable=False)
+    tipo_ajuste: Mapped[str] = mapped_column(String(100), nullable=False)
+    motivo: Mapped[str] = mapped_column(Text, nullable=False)
+    valor_anterior: Mapped[str | None] = mapped_column(Text)
+    valor_novo: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(50), default="pendente", nullable=False)
+    solicitante_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+    aprovador_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+
+
+class BancoHorasMovimento(Base, TimestampMixin):
+    __tablename__ = "banco_horas_movimentos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    colaborador_id: Mapped[int] = mapped_column(ForeignKey("colaboradores.id"), nullable=False)
+    data: Mapped[date] = mapped_column(Date, nullable=False)
+    origem: Mapped[str] = mapped_column(String(50), nullable=False)
+    tipo: Mapped[str] = mapped_column(String(50), nullable=False)
+    horas: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    descricao: Mapped[str | None] = mapped_column(Text)
+    competencia_id: Mapped[int | None] = mapped_column(ForeignKey("competencias_folha.id"))
+
+
+class ConfiguracaoSistema(Base, TimestampMixin):
+    __tablename__ = "configuracoes_sistema"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    chave: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    valor: Mapped[str] = mapped_column(Text, nullable=False)
+    descricao: Mapped[str | None] = mapped_column(Text)
+
+
+class TipoDocumento(Base, TimestampMixin):
+    __tablename__ = "tipos_documento"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    nome: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    descricao: Mapped[str | None] = mapped_column(Text)
+    sensivel: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    exige_validade: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+class DocumentoObrigatorioRegra(Base, TimestampMixin):
+    __tablename__ = "documentos_obrigatorios_regras"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tipo_documento_id: Mapped[int] = mapped_column(ForeignKey("tipos_documento.id"), nullable=False)
+    regime_contratual: Mapped[str | None] = mapped_column(String(50))
+    cargo_id: Mapped[int | None] = mapped_column(ForeignKey("cargos.id"))
+    departamento_id: Mapped[int | None] = mapped_column(ForeignKey("departamentos.id"))
+    obrigatorio: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    validade_dias: Mapped[int | None] = mapped_column(Integer)
+
+
+class DocumentoPendencia(Base, TimestampMixin):
+    __tablename__ = "documentos_pendencias"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    colaborador_id: Mapped[int] = mapped_column(ForeignKey("colaboradores.id"), nullable=False)
+    tipo_documento_id: Mapped[int] = mapped_column(ForeignKey("tipos_documento.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="pendente", nullable=False)
+    data_vencimento: Mapped[date | None] = mapped_column(Date)
+    severidade: Mapped[str] = mapped_column(String(50), default="media", nullable=False)
+    resolvido_em: Mapped[datetime | None] = mapped_column(DateTime)
+    justificativa: Mapped[str | None] = mapped_column(Text)
+
+
+class ExameOcupacional(Base, TimestampMixin):
+    __tablename__ = "exames_ocupacionais"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    colaborador_id: Mapped[int] = mapped_column(ForeignKey("colaboradores.id"), nullable=False)
+    tipo_exame: Mapped[str] = mapped_column(String(50), nullable=False)
+    data_exame: Mapped[date] = mapped_column(Date, nullable=False)
+    data_validade: Mapped[date | None] = mapped_column(Date)
+    clinica: Mapped[str | None] = mapped_column(String(255))
+    resultado: Mapped[str | None] = mapped_column(Text)
+    documento_id: Mapped[int | None] = mapped_column(ForeignKey("documentos.id"))
+    status: Mapped[str] = mapped_column(String(50), default="ativo", nullable=False)
+    observacao: Mapped[str | None] = mapped_column(Text)
+
+
+class EPI(Base, TimestampMixin):
+    __tablename__ = "epis"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    nome: Mapped[str] = mapped_column(String(255), nullable=False)
+    ca: Mapped[str | None] = mapped_column(String(50))
+    validade_ca: Mapped[date | None] = mapped_column(Date)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+class EntregaEPI(Base, TimestampMixin):
+    __tablename__ = "entregas_epi"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    colaborador_id: Mapped[int] = mapped_column(ForeignKey("colaboradores.id"), nullable=False)
+    epi_id: Mapped[int] = mapped_column(ForeignKey("epis.id"), nullable=False)
+    data_entrega: Mapped[date] = mapped_column(Date, nullable=False)
+    data_devolucao: Mapped[date | None] = mapped_column(Date)
+    quantidade: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    termo_documento_id: Mapped[int | None] = mapped_column(ForeignKey("documentos.id"))
+    status: Mapped[str] = mapped_column(String(50), default="ativo", nullable=False)
+
+
+class TreinamentoSST(Base, TimestampMixin):
+    __tablename__ = "treinamentos_sst"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    nome: Mapped[str] = mapped_column(String(255), nullable=False)
+    descricao: Mapped[str | None] = mapped_column(Text)
+    validade_meses: Mapped[int | None] = mapped_column(Integer)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+class ColaboradorTreinamentoSST(Base, TimestampMixin):
+    __tablename__ = "colaborador_treinamentos_sst"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    colaborador_id: Mapped[int] = mapped_column(ForeignKey("colaboradores.id"), nullable=False)
+    treinamento_id: Mapped[int] = mapped_column(ForeignKey("treinamentos_sst.id"), nullable=False)
+    data_realizacao: Mapped[date] = mapped_column(Date, nullable=False)
+    data_validade: Mapped[date | None] = mapped_column(Date)
+    documento_id: Mapped[int | None] = mapped_column(ForeignKey("documentos.id"))
+    status: Mapped[str] = mapped_column(String(50), default="ativo", nullable=False)
+
+
+class Alerta(Base, TimestampMixin):
+    __tablename__ = "alertas"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tipo: Mapped[str] = mapped_column(String(100), nullable=False)
+    severidade: Mapped[str] = mapped_column(String(50), nullable=False)
+    titulo: Mapped[str] = mapped_column(String(255), nullable=False)
+    descricao: Mapped[str] = mapped_column(Text, nullable=False)
+    entidade_tipo: Mapped[str | None] = mapped_column(String(100))
+    entidade_id: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(50), default="aberto", nullable=False)
+    resolvido_em: Mapped[datetime | None] = mapped_column(DateTime)
+    usuario_responsavel_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+    justificativa: Mapped[str | None] = mapped_column(Text)

@@ -16,16 +16,22 @@ from sqlalchemy import select
 from src.crud import admissoes as crud_admissoes
 from src.crud import afastamentos as crud_afastamentos
 from src.crud import beneficios as crud_beneficios
+from src.crud import banco_horas as crud_banco_horas
 from src.crud import cargos as crud_cargos
 from src.crud import centros_custo as crud_centros
 from src.crud import colaboradores as crud_colaboradores
 from src.crud import departamentos as crud_departamentos
 from src.crud import desligamentos as crud_desligamentos
+from src.crud import documentos_obrigatorios as crud_documentos_obrigatorios
 from src.crud import ferias as crud_ferias
 from src.crud import folha as crud_folha
+from src.crud import jornadas as crud_jornadas
+from src.crud import ponto as crud_ponto
+from src.crud import sst as crud_sst
 from src.db.database import SessionLocal
 from src.db.init_db import init_db
 from src.db.models import Auditoria, Beneficio, Colaborador, Documento, Empresa
+from src.services import alerts
 from src.services.audit_service import log_action
 from src.services.file_storage import save_upload
 from src.utils.config import is_production
@@ -42,6 +48,7 @@ def fake_cpf(index: int) -> str:
 
 def seed_demo() -> dict:
     ensure_not_production()
+    random.seed(42)
     init_db()
     summary = {}
     with SessionLocal() as db:
@@ -54,6 +61,8 @@ def seed_demo() -> dict:
         cargos = _ensure_cargos(db, departamentos)
         centros = _ensure_centros(db)
         colaboradores = _ensure_colaboradores(db, cargos, departamentos, centros)
+        jornadas = _ensure_jornadas(db)
+        _ensure_vinculos_jornada(db, colaboradores, jornadas)
         _ensure_admissoes(db, colaboradores[:5])
         _ensure_ferias(db, colaboradores[5:13])
         _ensure_afastamentos(db, colaboradores[13:18])
@@ -61,14 +70,20 @@ def seed_demo() -> dict:
         _ensure_vinculos(db, colaboradores[:15], beneficios)
         competencias = _ensure_competencias(db)
         _ensure_folha(db, colaboradores[:10], competencias)
+        _ensure_ponto(db, colaboradores[:12])
+        _ensure_banco_horas(db, colaboradores[:10])
+        _ensure_documentos_obrigatorios(db)
         _ensure_desligamentos(db, colaboradores[20:23])
         _ensure_documentos(db, colaboradores[:5])
+        _ensure_sst(db, colaboradores[:10])
+        alerts.gerar_alertas(db)
         log_action(db, tabela="seed_demo", acao="seed_demo", usuario_id=1, origem="scripts", valor_novo={"status": "ok"})
         summary = {
             "departamentos": len(departamentos),
             "cargos": len(cargos),
             "centros_custo": len(centros),
             "colaboradores": len(colaboradores),
+            "jornadas": len(jornadas),
             "beneficios": len(beneficios),
             "competencias": len(competencias),
         }
@@ -238,6 +253,64 @@ def _ensure_competencias(db):
     return existentes
 
 
+def _ensure_jornadas(db):
+    jornadas = crud_jornadas.listar_jornadas(db)
+    if jornadas:
+        return jornadas
+    specs = [
+        ("Administrativo 44h", "08:00", "12:00", "13:00", "17:00"),
+        ("Comercial 44h", "08:30", "12:00", "13:00", "17:30"),
+        ("Operacao 12x36", "07:00", None, None, "19:00"),
+    ]
+    resultado = []
+    for nome, entrada, saida_intervalo, retorno_intervalo, saida in specs:
+        jornada = crud_jornadas.criar_jornada(
+            db,
+            {
+                "nome": nome,
+                "descricao": f"Escala demo {nome}",
+                "carga_horaria_semanal": "44",
+                "carga_horaria_diaria": "8",
+                "tolerancia_entrada_minutos": 10,
+                "tolerancia_saida_minutos": 10,
+                "intervalo_minimo_minutos": 60,
+                "ativo": True,
+            },
+            1,
+        )
+        for dia in range(5):
+            crud_jornadas.criar_turno(
+                db,
+                jornada.id,
+                {
+                    "dia_semana": dia,
+                    "hora_entrada": entrada,
+                    "hora_saida_intervalo": saida_intervalo,
+                    "hora_retorno_intervalo": retorno_intervalo,
+                    "hora_saida": saida,
+                    "descanso": False,
+                },
+                1,
+            )
+        crud_jornadas.criar_turno(db, jornada.id, {"dia_semana": 5, "descanso": True}, 1)
+        crud_jornadas.criar_turno(db, jornada.id, {"dia_semana": 6, "descanso": True}, 1)
+        resultado.append(jornada)
+    return resultado
+
+
+def _ensure_vinculos_jornada(db, colaboradores, jornadas):
+    for idx, colaborador in enumerate(colaboradores, start=1):
+        if crud_jornadas.jornada_atual_colaborador(db, colaborador.id):
+            continue
+        jornada = jornadas[(idx - 1) % len(jornadas)]
+        crud_jornadas.vincular_jornada_colaborador(
+            db,
+            colaborador.id,
+            {"jornada_id": jornada.id, "data_inicio": date.today() - timedelta(days=60), "observacao": "Seed demo"},
+            1,
+        )
+
+
 def _ensure_folha(db, colaboradores, competencias):
     rubricas = crud_folha.listar_rubricas(db)
     if not rubricas:
@@ -263,6 +336,54 @@ def _ensure_folha(db, colaboradores, competencias):
                     },
                     1,
                 )
+
+
+def _ensure_ponto(db, colaboradores):
+    if crud_ponto.listar_marcacoes(db):
+        return
+    for idx, colaborador in enumerate(colaboradores, start=1):
+        data_ref = date.today() - timedelta(days=idx % 5)
+        crud_ponto.criar_marcacao(db, {"colaborador_id": colaborador.id, "data": data_ref, "tipo": "entrada", "horario": "08:00", "origem": "manual"}, 1)
+        if idx % 4 != 0:
+            crud_ponto.criar_marcacao(db, {"colaborador_id": colaborador.id, "data": data_ref, "tipo": "saida_intervalo", "horario": "12:00", "origem": "manual"}, 1)
+            crud_ponto.criar_marcacao(db, {"colaborador_id": colaborador.id, "data": data_ref, "tipo": "retorno_intervalo", "horario": "13:00", "origem": "manual"}, 1)
+            crud_ponto.criar_marcacao(db, {"colaborador_id": colaborador.id, "data": data_ref, "tipo": "saida", "horario": "17:00" if idx % 3 else "18:00", "origem": "manual"}, 1)
+    crud_ponto.apurar_periodo(db, data_inicio=date.today() - timedelta(days=5), data_fim=date.today(), usuario_id=1, atualizar_banco_horas=False)
+
+
+def _ensure_banco_horas(db, colaboradores):
+    if crud_banco_horas.listar_movimentos(db):
+        return
+    for idx, colaborador in enumerate(colaboradores, start=1):
+        crud_banco_horas.criar_movimento(
+            db,
+            {
+                "colaborador_id": colaborador.id,
+                "data": date.today() - timedelta(days=idx),
+                "origem": "ajuste_manual",
+                "tipo": "credito" if idx % 2 else "debito",
+                "horas": "1,50",
+                "descricao": "Movimento demo banco de horas",
+            },
+            1,
+        )
+
+
+def _ensure_documentos_obrigatorios(db):
+    tipos = crud_documentos_obrigatorios.listar_tipos_documento(db)
+    if not tipos:
+        tipos = [
+            crud_documentos_obrigatorios.criar_tipo_documento(db, {"nome": "rg", "ativo": True}, 1),
+            crud_documentos_obrigatorios.criar_tipo_documento(db, {"nome": "aso", "sensivel": True, "exige_validade": True, "ativo": True}, 1),
+        ]
+    if not crud_documentos_obrigatorios.listar_regras(db):
+        for tipo in tipos:
+            crud_documentos_obrigatorios.criar_regra(
+                db,
+                {"tipo_documento_id": tipo.id, "regime_contratual": "CLT", "obrigatorio": True, "validade_dias": 365},
+                1,
+            )
+    crud_documentos_obrigatorios.gerar_pendencias(db, 1)
 
 
 def _ensure_desligamentos(db, colaboradores):
@@ -302,6 +423,38 @@ def _ensure_documentos(db, colaboradores):
         )
         db.add(documento)
     db.commit()
+
+
+def _ensure_sst(db, colaboradores):
+    if crud_sst.listar_epis(db):
+        return
+    epi = crud_sst.criar_epi(db, {"nome": "Capacete Demo", "ca": "CA-DEMO-001", "validade_ca": date.today() - timedelta(days=10), "ativo": True}, 1)
+    treinamento = crud_sst.criar_treinamento(db, {"nome": "NR 06 Demo", "validade_meses": 12, "ativo": True}, 1)
+    for idx, colaborador in enumerate(colaboradores, start=1):
+        crud_sst.criar_exame(
+            db,
+            {
+                "colaborador_id": colaborador.id,
+                "tipo_exame": "periodico",
+                "data_exame": date.today() - timedelta(days=365),
+                "data_validade": date.today() + timedelta(days=30) if idx % 3 else date.today() - timedelta(days=5),
+                "clinica": "Clinica Demo",
+                "status": "ativo",
+            },
+            1,
+        )
+        crud_sst.criar_entrega_epi(db, {"colaborador_id": colaborador.id, "epi_id": epi.id, "data_entrega": date.today() - timedelta(days=30), "quantidade": 1, "status": "ativo"}, 1)
+        crud_sst.vincular_treinamento(
+            db,
+            {
+                "colaborador_id": colaborador.id,
+                "treinamento_id": treinamento.id,
+                "data_realizacao": date.today() - timedelta(days=400),
+                "data_validade": date.today() + timedelta(days=60) if idx % 4 else date.today() - timedelta(days=2),
+                "status": "ativo",
+            },
+            1,
+        )
 
 
 if __name__ == "__main__":

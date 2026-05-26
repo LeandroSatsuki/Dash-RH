@@ -18,6 +18,13 @@ MODULES = [
     "operational_app.app",
     "src.api.main",
     "alembic",
+    "src.crud.jornadas",
+    "src.crud.ponto",
+    "src.crud.banco_horas",
+    "src.crud.documentos_obrigatorios",
+    "src.crud.sst",
+    "src.services.alerts",
+    "src.services.importacao_ponto",
 ]
 
 
@@ -60,6 +67,9 @@ def check_permissions() -> None:
     permissions = importlib.import_module("src.auth.permissions")
     assert permissions.has_permission("admin", "folha:update")
     assert not permissions.has_permission("visualizador", "folha:update")
+    assert permissions.has_permission("dp", "ponto:approve")
+    assert permissions.has_permission("dp", "jornadas:create")
+    assert permissions.has_permission("rh", "documentos_obrigatorios:view")
     print("[ok] permissoes basicas")
 
 

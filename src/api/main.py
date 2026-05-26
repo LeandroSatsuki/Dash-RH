@@ -5,7 +5,9 @@ from fastapi import FastAPI
 from src.api.routes import (
     admissoes,
     afastamentos,
+    alertas,
     auth,
+    banco_horas,
     beneficios,
     cargos,
     centros_custo,
@@ -13,9 +15,13 @@ from src.api.routes import (
     departamentos,
     desligamentos,
     documentos,
+    documentos_obrigatorios,
     ferias,
     folha,
     indicadores,
+    jornadas,
+    ponto,
+    sst,
 )
 from src.db.init_db import init_db
 
@@ -35,6 +41,12 @@ app.include_router(afastamentos.router)
 app.include_router(folha.router)
 app.include_router(desligamentos.router)
 app.include_router(documentos.router)
+app.include_router(jornadas.router)
+app.include_router(ponto.router)
+app.include_router(banco_horas.router)
+app.include_router(documentos_obrigatorios.router)
+app.include_router(sst.router)
+app.include_router(alertas.router)
 app.include_router(indicadores.router)
 
 

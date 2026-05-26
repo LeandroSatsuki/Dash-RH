@@ -14,6 +14,7 @@ O projeto segue uma arquitetura hibrida:
 - `src/crud`: operacoes transacionais com soft delete e auditoria central.
 - `src/schemas`: contratos Pydantic para API e servicos.
 - `src/services`: indicadores, importacao Excel, auditoria, qualidade de dados, mascaramento, valores monetarios e armazenamento de arquivos.
+- `src/services`: indicadores, importacao Excel, importacao de ponto, auditoria, alertas, qualidade de dados, mascaramento, valores monetarios e armazenamento de arquivos.
 - `src/api`: API FastAPI autenticada por token.
 - `operational_app`: interface Streamlit com login real e bloqueio por perfil.
 - `dashboard`: dashboard legado independente do banco.
@@ -24,8 +25,9 @@ O projeto segue uma arquitetura hibrida:
 2. Permissoes filtram modulos e acoes.
 3. CRUD grava dados no banco com soft delete quando aplicavel.
 4. Auditoria central registra criacao, edicao, exclusao logica, login, falha de login, fechamento de competencia, reabertura, upload e importacao.
-5. Indicadores leem preferencialmente o banco operacional e usam snapshots de folha quando a competencia esta fechada.
-6. Pipeline legado continua disponivel para importacao e analise historica.
+5. Jornada, ponto, banco de horas, documentos obrigatorios, SST e alertas operam no banco principal.
+6. Indicadores leem preferencialmente o banco operacional e usam snapshots de folha quando a competencia esta fechada.
+7. Pipeline legado continua disponivel para importacao e analise historica.
 
 ## Banco de dados
 
@@ -50,6 +52,7 @@ O projeto segue uma arquitetura hibrida:
   - `visualizador`
 - Dados sensiveis ficam mascarados por padrao.
 - Uploads ficam restritos a `UPLOAD_DIR`, com validacao de extensao, tamanho e path seguro.
+- O modulo de ponto e operacional interno e nao declara conformidade legal de REP.
 
 ## Auditoria
 
