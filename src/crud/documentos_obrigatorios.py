@@ -89,9 +89,20 @@ def dispensar_pendencia(db: Session, pendencia_id: int, justificativa: str, usua
     if not justificativa:
         raise ValueError("Dispensa de documento exige justificativa.")
     pendencia = db.get(DocumentoPendencia, pendencia_id)
-    return update_record(
+    updated = update_record(
         db,
         pendencia,
         {"status": "dispensado", "justificativa": justificativa, "resolvido_em": datetime.now(UTC).replace(tzinfo=None)},
         usuario_id,
     )
+    from src.services import workflow_service
+
+    workflow_service.request_approval_for_entity(
+        db,
+        modulo="documentos",
+        entidade_tipo="documento_pendencia_dispensa",
+        entidade_id=pendencia_id,
+        solicitante_id=usuario_id,
+        comentario=justificativa,
+    )
+    return updated

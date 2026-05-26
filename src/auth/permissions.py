@@ -23,6 +23,11 @@ PERMISSIONS = {
         "documentos_obrigatorios:view", "documentos_obrigatorios:update",
         "sst:view", "sst:create", "sst:update",
         "alertas:view", "alertas:update",
+        "workflows:view", "workflows:create", "workflows:update", "workflows:approve",
+        "tarefas:view", "tarefas:create", "tarefas:update", "tarefas:assign", "tarefas:comment",
+        "notificacoes:view", "notificacoes:update",
+        "calendario:view",
+        "relatorios_operacionais:view", "relatorios_operacionais:export",
         "indicadores:view", "auditoria:view", "qualidade:view",
     },
     "rh": {
@@ -30,19 +35,23 @@ PERMISSIONS = {
         "colaboradores:view", "admissoes:view", "ferias:view", "afastamentos:view",
         "documentos:view_limited", "beneficios:view", "indicadores:view", "qualidade:view",
         "jornadas:view", "documentos_obrigatorios:view", "alertas:view", "sst:view",
+        "workflows:view", "tarefas:view", "tarefas:create", "tarefas:update", "tarefas:comment",
+        "notificacoes:view", "notificacoes:update", "calendario:view",
     },
     "gestor": {
         "colaboradores:view_area", "ferias:create", "ferias:view", "indicadores:view_area", "qualidade:view",
         "ponto:view", "alertas:view", "jornadas:view",
+        "workflows:view", "workflows:approve", "tarefas:view", "tarefas:update", "tarefas:assign", "tarefas:comment", "notificacoes:view", "notificacoes:update", "calendario:view",
     },
     "financeiro": {
         "centros_custo:view", "centros_custo:create", "centros_custo:update",
         "beneficios:view", "beneficios:costs", "folha:view", "folha:create", "folha:update", "custos:view",
         "banco_horas:view", "indicadores:view",
+        "workflows:view", "workflows:approve", "tarefas:view", "notificacoes:view", "calendario:view", "relatorios_operacionais:view", "relatorios_operacionais:export",
     },
-    "diretoria": {"indicadores:view", "custos:view", "colaboradores:view_masked", "qualidade:view", "alertas:view"},
-    "auditor": {"auditoria:view", "logs:view", "colaboradores:view_masked", "documentos:view_limited", "qualidade:view", "alertas:view"},
-    "visualizador": {"indicadores:view", "colaboradores:view_masked", "alertas:view"},
+    "diretoria": {"indicadores:view", "custos:view", "colaboradores:view_masked", "qualidade:view", "alertas:view", "workflows:view", "workflows:approve", "notificacoes:view", "calendario:view", "relatorios_operacionais:view", "relatorios_operacionais:export"},
+    "auditor": {"auditoria:view", "logs:view", "colaboradores:view_masked", "documentos:view_limited", "qualidade:view", "alertas:view", "workflows:view", "tarefas:view", "notificacoes:view", "calendario:view", "relatorios_operacionais:view"},
+    "visualizador": {"indicadores:view", "colaboradores:view_masked", "alertas:view", "notificacoes:view"},
 }
 
 

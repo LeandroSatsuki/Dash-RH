@@ -90,6 +90,21 @@ Fluxos principais desta fase:
 - documentos obrigatorios por regime/cargo/departamento
 - SST base com exames, EPI, treinamentos e alertas
 - importacao generica de ponto por CSV/Excel
+- workflows e aprovacoes operacionais
+- tarefas operacionais com prazo, responsavel e comentarios
+- notificacoes internas no app
+- calendario operacional
+- relatorios operacionais exportaveis
+
+## Daily checks
+
+Para gerar tarefas automaticas, notificacoes e atualizar alertas:
+
+```bash
+python scripts/run_daily_checks.py
+```
+
+O script e idempotente por entidade/tipo no mesmo dia.
 
 ## Execucao
 
@@ -131,6 +146,8 @@ python scripts/check_local.py
 - Uploads usam validacao de extensao, tamanho e path seguro.
 - Operacoes criticas registram auditoria.
 - Planilhas, `.env`, bancos locais e uploads permanecem fora do Git.
+- Notificacoes externas ficam desativadas por padrao.
+- Credenciais SMTP e webhook devem vir do ambiente.
 
 ## Ponto operacional
 

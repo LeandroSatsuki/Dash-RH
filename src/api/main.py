@@ -22,6 +22,9 @@ from src.api.routes import (
     jornadas,
     ponto,
     sst,
+    tarefas,
+    notificacoes,
+    workflows,
 )
 from src.db.init_db import init_db
 
@@ -47,6 +50,9 @@ app.include_router(banco_horas.router)
 app.include_router(documentos_obrigatorios.router)
 app.include_router(sst.router)
 app.include_router(alertas.router)
+app.include_router(workflows.router)
+app.include_router(tarefas.router)
+app.include_router(notificacoes.router)
 app.include_router(indicadores.router)
 
 

@@ -22,7 +22,18 @@ def _validar_conclusao(colaborador: Colaborador, desligamento: Desligamento) -> 
 def criar(db: Session, data: dict, usuario_id: int | None = None):
     payload = data.copy()
     payload.setdefault("status", "rascunho")
-    return create_record(db, Desligamento, payload, usuario_id)
+    desligamento = create_record(db, Desligamento, payload, usuario_id)
+    from src.services import workflow_service
+
+    workflow_service.request_approval_for_entity(
+        db,
+        modulo="desligamento",
+        entidade_tipo="desligamento",
+        entidade_id=desligamento.id,
+        solicitante_id=usuario_id,
+        comentario="Solicitacao de desligamento criada.",
+    )
+    return desligamento
 
 
 def listar(db: Session):
@@ -52,6 +63,12 @@ def concluir(db: Session, desligamento_id: int, usuario_id: int | None = None):
     for vinculo in db.query(ColaboradorBeneficio).filter(ColaboradorBeneficio.colaborador_id == colaborador.id, ColaboradorBeneficio.status == "ativo").all():
         update_record(db, vinculo, {"status": "encerrado", "data_fim": desligamento.data_desligamento}, usuario_id)
     updated = update_record(db, desligamento, {"status": "concluida"}, usuario_id)
+    from src.crud import workflows as crud_workflows
+    from src.services import workflow_service
+
+    instancia = crud_workflows.buscar_instancia_por_entidade(db, "desligamento", updated.id)
+    if instancia is not None and instancia.status == "aguardando_aprovacao":
+        workflow_service.approve_instance(db, instancia.id, usuario_id or 1, "Desligamento concluido.")
     registrar_historico(
         db,
         colaborador_id=colaborador.id,
@@ -69,5 +86,11 @@ def concluir(db: Session, desligamento_id: int, usuario_id: int | None = None):
 def cancelar(db: Session, desligamento_id: int, usuario_id: int | None = None, motivo: str | None = None):
     desligamento = buscar_por_id(db, desligamento_id)
     updated = update_record(db, desligamento, {"status": "cancelada", "observacao": motivo or desligamento.observacao}, usuario_id)
+    from src.crud import workflows as crud_workflows
+    from src.services import workflow_service
+
+    instancia = crud_workflows.buscar_instancia_por_entidade(db, "desligamento", updated.id)
+    if instancia is not None and instancia.status not in {"cancelado", "concluido", "reprovado"}:
+        workflow_service.cancel_instance(db, instancia.id, usuario_id or 1, motivo or "Desligamento cancelado.")
     log_action(db, tabela="desligamentos", acao="cancelar_desligamento", registro_id=updated.id, usuario_id=usuario_id, origem="desligamentos")
     return updated

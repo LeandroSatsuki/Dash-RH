@@ -32,7 +32,18 @@ def _validar_sobreposicao(db: Session, colaborador_id: int, data_inicio: date | 
 
 def criar(db: Session, data: dict, usuario_id: int | None = None):
     _validar(data)
-    return create_record(db, Ferias, data, usuario_id)
+    ferias = create_record(db, Ferias, data, usuario_id)
+    from src.services import workflow_service
+
+    workflow_service.request_approval_for_entity(
+        db,
+        modulo="ferias",
+        entidade_tipo="ferias",
+        entidade_id=ferias.id,
+        solicitante_id=usuario_id,
+        comentario="Solicitacao de ferias criada.",
+    )
+    return ferias
 
 
 def listar(db: Session):
@@ -59,6 +70,12 @@ def aprovar(db: Session, ferias_id: int, usuario_id: int | None = None):
         raise ValueError("Nao e possivel aprovar ferias para colaborador desligado.")
     _validar_sobreposicao(db, obj.colaborador_id, obj.data_inicio, obj.data_fim, obj.id)
     updated = update_record(db, obj, {"status": "aprovada"}, usuario_id)
+    from src.crud import workflows as crud_workflows
+    from src.services import workflow_service
+
+    instancia = crud_workflows.buscar_instancia_por_entidade(db, "ferias", obj.id)
+    if instancia is not None and instancia.status == "aguardando_aprovacao":
+        workflow_service.approve_instance(db, instancia.id, usuario_id or 1, "Ferias aprovadas.")
     log_action(db, tabela="ferias", acao="aprovar_ferias", registro_id=obj.id, usuario_id=usuario_id, origem="ferias")
     return updated
 
@@ -66,6 +83,12 @@ def aprovar(db: Session, ferias_id: int, usuario_id: int | None = None):
 def cancelar(db: Session, ferias_id: int, usuario_id: int | None = None, motivo: str | None = None):
     obj = buscar_por_id(db, ferias_id)
     updated = update_record(db, obj, {"status": "cancelada", "observacao": motivo or obj.observacao}, usuario_id)
+    from src.crud import workflows as crud_workflows
+    from src.services import workflow_service
+
+    instancia = crud_workflows.buscar_instancia_por_entidade(db, "ferias", obj.id)
+    if instancia is not None and instancia.status not in {"cancelado", "concluido", "reprovado"}:
+        workflow_service.cancel_instance(db, instancia.id, usuario_id or 1, motivo or "Cancelamento de ferias.")
     log_action(db, tabela="ferias", acao="cancelar_ferias", registro_id=obj.id, usuario_id=usuario_id, origem="ferias")
     return updated
 

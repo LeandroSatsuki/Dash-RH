@@ -4,8 +4,9 @@ import streamlit as st
 
 from operational_app.common import db_session
 from src.auth.permissions import has_permission
-from src.auth.users import authenticate_user
 from src.auth.security import create_access_token
+from src.auth.users import authenticate_user
+from src.crud import notificacoes as crud_notificacoes
 from src.utils.config import is_development
 
 
@@ -27,8 +28,9 @@ def require_streamlit_login() -> dict | None:
     st.sidebar.header("Acesso")
     current_user = get_current_user()
     if current_user:
-        st.sidebar.success(f"Usuário: {current_user['nome']}")
+        st.sidebar.success(f"Usuario: {current_user['nome']}")
         st.sidebar.caption(f"Perfil: {current_user['perfil']}")
+        st.sidebar.caption(f"Nao lidas: {current_user.get('unread_notifications', 0)}")
         if st.sidebar.button("Logout"):
             logout()
             st.rerun()
@@ -42,9 +44,10 @@ def require_streamlit_login() -> dict | None:
         with db_session() as db:
             user = authenticate_user(db, email, senha)
             if user is None:
-                st.sidebar.error("Credenciais inválidas.")
+                st.sidebar.error("Credenciais invalidas.")
             else:
-                st.session_state["current_user"] = {"id": user.id, "nome": user.nome, "email": user.email, "perfil": user.perfil}
+                unread = len(crud_notificacoes.listar(db, usuario_id=user.id, apenas_nao_lidas=True))
+                st.session_state["current_user"] = {"id": user.id, "nome": user.nome, "email": user.email, "perfil": user.perfil, "unread_notifications": unread}
                 st.session_state["access_token"] = create_access_token({"user_id": user.id, "perfil": user.perfil, "email": user.email})
                 st.rerun()
     return None

@@ -23,8 +23,17 @@ MODULES = [
     "src.crud.banco_horas",
     "src.crud.documentos_obrigatorios",
     "src.crud.sst",
+    "src.crud.workflows",
+    "src.crud.tarefas",
+    "src.crud.notificacoes",
     "src.services.alerts",
     "src.services.importacao_ponto",
+    "src.services.workflow_service",
+    "src.services.task_service",
+    "src.services.notification_service",
+    "src.services.calendar_service",
+    "src.services.report_service",
+    "scripts.run_daily_checks",
 ]
 
 
@@ -35,7 +44,10 @@ def check_imports() -> None:
 
 
 def run_pytest() -> None:
-    result = subprocess.run([sys.executable, "-m", "pytest"], check=False)
+    env = os.environ.copy()
+    pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = os.pathsep.join(part for part in [str(ROOT), pythonpath] if part)
+    result = subprocess.run([sys.executable, "-m", "pytest"], check=False, cwd=ROOT, env=env)
     if result.returncode != 0:
         raise SystemExit(result.returncode)
 
@@ -70,6 +82,9 @@ def check_permissions() -> None:
     assert permissions.has_permission("dp", "ponto:approve")
     assert permissions.has_permission("dp", "jornadas:create")
     assert permissions.has_permission("rh", "documentos_obrigatorios:view")
+    assert permissions.has_permission("dp", "workflows:create")
+    assert permissions.has_permission("dp", "tarefas:update")
+    assert permissions.has_permission("dp", "notificacoes:view")
     print("[ok] permissoes basicas")
 
 

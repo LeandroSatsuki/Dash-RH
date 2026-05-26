@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import random
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
 
 from sqlalchemy import select
 
+from src.auth.security import hash_password
 from src.crud import admissoes as crud_admissoes
 from src.crud import afastamentos as crud_afastamentos
 from src.crud import beneficios as crud_beneficios
@@ -26,14 +27,21 @@ from src.crud import documentos_obrigatorios as crud_documentos_obrigatorios
 from src.crud import ferias as crud_ferias
 from src.crud import folha as crud_folha
 from src.crud import jornadas as crud_jornadas
+from src.crud import notificacoes as crud_notificacoes
 from src.crud import ponto as crud_ponto
+from src.crud import tarefas as crud_tarefas
+from src.crud import workflows as crud_workflows
 from src.crud import sst as crud_sst
 from src.db.database import SessionLocal
 from src.db.init_db import init_db
-from src.db.models import Auditoria, Beneficio, Colaborador, Documento, Empresa
+from src.db.models import Auditoria, Beneficio, Colaborador, Documento, Empresa, Usuario
 from src.services import alerts
 from src.services.audit_service import log_action
 from src.services.file_storage import save_upload
+from src.services.notification_service import notify_user
+from src.services.scheduler_rules import run_daily_checks
+from src.services.task_service import create_task
+from src.services.workflow_service import ensure_default_workflow, request_approval_for_entity
 from src.utils.config import is_production
 
 
@@ -52,6 +60,10 @@ def seed_demo() -> dict:
     init_db()
     summary = {}
     with SessionLocal() as db:
+        if db.scalar(select(Usuario).where(Usuario.id == 1)) is None:
+            admin = Usuario(nome="Admin Demo", email="admin@demo.local", senha_hash=hash_password("Admin@123"), perfil="admin", ativo=True)
+            db.add(admin)
+            db.commit()
         if db.scalar(select(Empresa).limit(1)) is None:
             empresa = Empresa(razao_social="Empresa Demo RH LTDA", nome_fantasia="Demo RH", cnpj="00000000000000", status="ativa")
             db.add(empresa)
@@ -76,7 +88,9 @@ def seed_demo() -> dict:
         _ensure_desligamentos(db, colaboradores[20:23])
         _ensure_documentos(db, colaboradores[:5])
         _ensure_sst(db, colaboradores[:10])
+        _ensure_workflows_tarefas_notificacoes(db)
         alerts.gerar_alertas(db)
+        run_daily_checks(db)
         log_action(db, tabela="seed_demo", acao="seed_demo", usuario_id=1, origem="scripts", valor_novo={"status": "ok"})
         summary = {
             "departamentos": len(departamentos),
@@ -86,6 +100,7 @@ def seed_demo() -> dict:
             "jornadas": len(jornadas),
             "beneficios": len(beneficios),
             "competencias": len(competencias),
+            "tarefas": len(crud_tarefas.listar(db)),
         }
     return summary
 
@@ -455,6 +470,61 @@ def _ensure_sst(db, colaboradores):
             },
             1,
         )
+
+
+def _ensure_workflows_tarefas_notificacoes(db):
+    modulos = ["admissao", "ferias", "afastamento", "beneficio", "folha", "desligamento", "ponto", "documentos", "sst", "banco_horas", "geral"]
+    for modulo in modulos:
+        ensure_default_workflow(db, modulo, 1)
+    if not crud_tarefas.listar(db):
+        create_task(
+            db,
+            {
+                "titulo": "Conferir documentos vencidos",
+                "descricao": "Tarefa demo de documentos.",
+                "modulo": "documentos",
+                "prioridade": "alta",
+                "responsavel_id": 1,
+                "solicitante_id": 1,
+                "prazo": datetime.now().replace(hour=18, minute=0, second=0, microsecond=0),
+            },
+            1,
+        )
+        create_task(
+            db,
+            {
+                "titulo": "Validar ponto inconsistente",
+                "descricao": "Tarefa demo de ponto.",
+                "modulo": "ponto",
+                "prioridade": "critica",
+                "responsavel_id": 1,
+                "solicitante_id": 1,
+                "prazo": datetime.now() - timedelta(hours=2),
+            },
+            1,
+        )
+        tarefa = crud_tarefas.listar(db)[0]
+        crud_tarefas.criar_comentario(db, tarefa.id, "Comentario demo sem dado sensivel.", 1)
+    if not crud_notificacoes.listar(db, usuario_id=1):
+        notify_user(db, usuario_id=1, titulo="Sistema pronto", mensagem="Seed demo carregado com notificacoes internas.", tipo="sistema", severidade="info", origem="seed_demo")
+    from src.db.models import Ferias, AjustePonto, CompetenciaFolha, DocumentoPendencia
+
+    ferias = db.scalar(select(Ferias).limit(1))
+    if ferias is not None:
+        request_approval_for_entity(db, modulo="ferias", entidade_tipo="ferias", entidade_id=ferias.id, solicitante_id=1, comentario="Workflow demo de ferias.")
+    ajuste = db.scalar(select(AjustePonto).limit(1))
+    if ajuste is None:
+        colaboradores = db.scalars(select(Colaborador).limit(1)).all()
+        if colaboradores:
+            ajuste = crud_ponto.criar_ajuste(db, {"colaborador_id": colaboradores[0].id, "data": date.today(), "tipo_ajuste": "inclusao_marcacao", "motivo": "Ajuste demo", "valor_novo": "08:00"}, 1)
+    if ajuste is not None:
+        request_approval_for_entity(db, modulo="ponto", entidade_tipo="ajuste_ponto", entidade_id=ajuste.id, solicitante_id=1, comentario="Workflow demo de ajuste de ponto.")
+    competencia = db.scalar(select(CompetenciaFolha).limit(1))
+    if competencia is not None:
+        request_approval_for_entity(db, modulo="folha", entidade_tipo="competencia_folha", entidade_id=competencia.id, solicitante_id=1, comentario="Workflow demo de folha.")
+    pendencia = db.scalar(select(DocumentoPendencia).limit(1))
+    if pendencia is not None:
+        request_approval_for_entity(db, modulo="documentos", entidade_tipo="documento_pendencia_dispensa", entidade_id=pendencia.id, solicitante_id=1, comentario="Workflow demo de dispensa documental.")
 
 
 if __name__ == "__main__":

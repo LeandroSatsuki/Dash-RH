@@ -30,6 +30,10 @@ PAGES = {
     "Documentos Obrigatorios": {"file": "18_documentos_obrigatorios.py", "permission": "documentos_obrigatorios:view"},
     "SST": {"file": "19_sst.py", "permission": "sst:view"},
     "Alertas": {"file": "20_alertas.py", "permission": "alertas:view"},
+    "Tarefas": {"file": "21_tarefas.py", "permission": "tarefas:view"},
+    "Notificacoes": {"file": "22_notificacoes.py", "permission": "notificacoes:view"},
+    "Calendario Operacional": {"file": "23_calendario_operacional.py", "permission": "calendario:view"},
+    "Relatorios Operacionais": {"file": "24_relatorios_operacionais.py", "permission": "relatorios_operacionais:view"},
 }
 
 
@@ -48,7 +52,9 @@ def render_home(user: dict):
     from sqlalchemy import func, select
 
     from operational_app.common import db_session
-    from src.db.models import CompetenciaFolha, DocumentoPendencia, ExameOcupacional
+    from src.crud import notificacoes as crud_notificacoes
+    from src.crud import tarefas as crud_tarefas
+    from src.db.models import CompetenciaFolha, DocumentoPendencia, ExameOcupacional, WorkflowInstancia
     from src.services import alerts
     from src.services.data_quality import generate_operational_quality_report
     from src.services.indicadores import indicadores_dashboard, indicadores_operacionais
@@ -66,6 +72,9 @@ def render_home(user: dict):
         ) or 0
         documentos_pendentes = db.scalar(select(func.count()).select_from(DocumentoPendencia).where(DocumentoPendencia.status == "pendente")) or 0
         exames_vencidos = db.scalar(select(func.count()).select_from(ExameOcupacional).where(ExameOcupacional.data_validade.is_not(None), ExameOcupacional.data_validade < func.current_date())) or 0
+        minhas_tarefas = len(crud_tarefas.listar(db, responsavel_id=user["id"]))
+        minhas_aprovacoes = db.scalar(select(func.count()).select_from(WorkflowInstancia).where(WorkflowInstancia.responsavel_atual_id == user["id"], WorkflowInstancia.status == "aguardando_aprovacao")) or 0
+        notificacoes_nao_lidas = len(crud_notificacoes.listar(db, usuario_id=user["id"], apenas_nao_lidas=True))
 
     cards = [
         ("Colaboradores ativos", indicadores["headcount_ativo"]),
@@ -78,6 +87,9 @@ def render_home(user: dict):
         ("Competencias abertas", competencias_abertas),
         ("Problemas criticos", len([item for item in quality_issues if item["severidade"] == "critica"])),
         ("Alertas criticos", indicadores["alertas_criticos"]),
+        ("Minhas tarefas", minhas_tarefas),
+        ("Minhas aprovacoes", minhas_aprovacoes),
+        ("Nao lidas", notificacoes_nao_lidas),
     ]
     cols = st.columns(3)
     for idx, (label, value) in enumerate(cards):
@@ -93,6 +105,7 @@ def main():
     if not user:
         st.info("Entre com um usuario valido para acessar o mini ERP.")
         return
+    st.sidebar.caption(f"Notificacoes nao lidas: {user.get('unread_notifications', 0)}")
     allowed_pages = [name for name, config in PAGES.items() if can_access(config["permission"])]
     page = st.sidebar.radio("Navegacao", allowed_pages)
     if page == "Home":

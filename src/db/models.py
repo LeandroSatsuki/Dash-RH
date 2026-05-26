@@ -534,3 +534,118 @@ class Alerta(Base, TimestampMixin):
     resolvido_em: Mapped[datetime | None] = mapped_column(DateTime)
     usuario_responsavel_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
     justificativa: Mapped[str | None] = mapped_column(Text)
+
+
+class Workflow(Base, TimestampMixin, SoftDeleteMixin):
+    __tablename__ = "workflows"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    nome: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    modulo: Mapped[str] = mapped_column(String(50), nullable=False)
+    descricao: Mapped[str | None] = mapped_column(Text)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+class WorkflowEtapa(Base, TimestampMixin):
+    __tablename__ = "workflow_etapas"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workflow_id: Mapped[int] = mapped_column(ForeignKey("workflows.id"), nullable=False)
+    nome: Mapped[str] = mapped_column(String(255), nullable=False)
+    ordem: Mapped[int] = mapped_column(Integer, nullable=False)
+    perfil_responsavel: Mapped[str | None] = mapped_column(String(50))
+    permissao_requerida: Mapped[str | None] = mapped_column(String(100))
+    obrigatoria: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    prazo_horas: Mapped[int | None] = mapped_column(Integer)
+    permite_reprovar: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    permite_devolver: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+class WorkflowInstancia(Base, TimestampMixin):
+    __tablename__ = "workflow_instancias"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workflow_id: Mapped[int] = mapped_column(ForeignKey("workflows.id"), nullable=False)
+    entidade_tipo: Mapped[str] = mapped_column(String(100), nullable=False)
+    entidade_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="rascunho", nullable=False)
+    etapa_atual_id: Mapped[int | None] = mapped_column(ForeignKey("workflow_etapas.id"))
+    solicitante_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+    responsavel_atual_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+    concluido_em: Mapped[datetime | None] = mapped_column(DateTime)
+    cancelado_em: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class WorkflowHistorico(Base):
+    __tablename__ = "workflow_historico"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    instancia_id: Mapped[int] = mapped_column(ForeignKey("workflow_instancias.id"), nullable=False)
+    etapa_id: Mapped[int | None] = mapped_column(ForeignKey("workflow_etapas.id"))
+    usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+    acao: Mapped[str] = mapped_column(String(50), nullable=False)
+    comentario: Mapped[str | None] = mapped_column(Text)
+    criado_em: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive, nullable=False)
+
+
+class Tarefa(Base, TimestampMixin, SoftDeleteMixin):
+    __tablename__ = "tarefas"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    titulo: Mapped[str] = mapped_column(String(255), nullable=False)
+    descricao: Mapped[str | None] = mapped_column(Text)
+    modulo: Mapped[str] = mapped_column(String(50), nullable=False)
+    entidade_tipo: Mapped[str | None] = mapped_column(String(100))
+    entidade_id: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(50), default="aberta", nullable=False)
+    prioridade: Mapped[str] = mapped_column(String(20), default="media", nullable=False)
+    responsavel_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+    solicitante_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+    prazo: Mapped[datetime | None] = mapped_column(DateTime)
+    concluido_em: Mapped[datetime | None] = mapped_column(DateTime)
+    motivo_cancelamento: Mapped[str | None] = mapped_column(Text)
+
+
+class TarefaComentario(Base):
+    __tablename__ = "tarefas_comentarios"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tarefa_id: Mapped[int] = mapped_column(ForeignKey("tarefas.id"), nullable=False)
+    usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
+    comentario: Mapped[str] = mapped_column(Text, nullable=False)
+    criado_em: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive, nullable=False)
+
+
+class TarefaAnexo(Base):
+    __tablename__ = "tarefas_anexos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tarefa_id: Mapped[int] = mapped_column(ForeignKey("tarefas.id"), nullable=False)
+    documento_id: Mapped[int] = mapped_column(ForeignKey("documentos.id"), nullable=False)
+    criado_em: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive, nullable=False)
+
+
+class Notificacao(Base):
+    __tablename__ = "notificacoes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), nullable=False)
+    titulo: Mapped[str] = mapped_column(String(255), nullable=False)
+    mensagem: Mapped[str] = mapped_column(Text, nullable=False)
+    tipo: Mapped[str] = mapped_column(String(50), nullable=False)
+    severidade: Mapped[str] = mapped_column(String(20), default="info", nullable=False)
+    lida: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    link_entidade_tipo: Mapped[str | None] = mapped_column(String(100))
+    link_entidade_id: Mapped[int | None] = mapped_column(Integer)
+    criado_em: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive, nullable=False)
+    lida_em: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class ConfiguracaoNotificacao(Base, TimestampMixin):
+    __tablename__ = "configuracoes_notificacao"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    canal: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    config_json: Mapped[dict | None] = mapped_column(JSON)

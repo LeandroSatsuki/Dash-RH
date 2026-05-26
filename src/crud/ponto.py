@@ -356,6 +356,16 @@ def criar_ajuste(db: Session, data: dict, usuario_id: int | None = None) -> Ajus
     db.commit()
     db.refresh(ajuste)
     log_action(db, tabela="ajustes_ponto", acao="create", registro_id=ajuste.id, usuario_id=usuario_id, origem="ponto", valor_novo=payload)
+    from src.services import workflow_service
+
+    workflow_service.request_approval_for_entity(
+        db,
+        modulo="ponto",
+        entidade_tipo="ajuste_ponto",
+        entidade_id=ajuste.id,
+        solicitante_id=usuario_id,
+        comentario=ajuste.motivo,
+    )
     return ajuste
 
 
@@ -368,11 +378,17 @@ def aprovar_ajuste(db: Session, ajuste_id: int, usuario_id: int | None = None) -
     db.add(ajuste)
     db.commit()
     db.refresh(ajuste)
+    from src.crud import workflows as crud_workflows
+    from src.services import workflow_service
+
+    instancia = crud_workflows.buscar_instancia_por_entidade(db, "ajuste_ponto", ajuste.id)
+    if instancia is not None and instancia.status == "aguardando_aprovacao":
+        workflow_service.approve_instance(db, instancia.id, usuario_id or 1, "Ajuste de ponto aprovado.")
     log_action(db, tabela="ajustes_ponto", acao="aprovar_ajuste", registro_id=ajuste.id, usuario_id=usuario_id, origem="ponto")
     return ajuste
 
 
-def reprovar_ajuste(db: Session, ajuste_id: int, usuario_id: int | None = None) -> AjustePonto:
+def reprovar_ajuste(db: Session, ajuste_id: int, usuario_id: int | None = None, comentario: str | None = None) -> AjustePonto:
     ajuste = db.get(AjustePonto, ajuste_id)
     if ajuste is None:
         raise ValueError("Ajuste nao encontrado.")
@@ -381,6 +397,12 @@ def reprovar_ajuste(db: Session, ajuste_id: int, usuario_id: int | None = None) 
     db.add(ajuste)
     db.commit()
     db.refresh(ajuste)
+    from src.crud import workflows as crud_workflows
+    from src.services import workflow_service
+
+    instancia = crud_workflows.buscar_instancia_por_entidade(db, "ajuste_ponto", ajuste.id)
+    if instancia is not None and instancia.status == "aguardando_aprovacao":
+        workflow_service.reject_instance(db, instancia.id, usuario_id or 1, comentario or "Ajuste de ponto reprovado.")
     log_action(db, tabela="ajustes_ponto", acao="reprovar_ajuste", registro_id=ajuste.id, usuario_id=usuario_id, origem="ponto")
     return ajuste
 

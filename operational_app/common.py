@@ -61,3 +61,9 @@ def format_percent(value: float | int | None) -> str:
 
 def render_kpi_card(label: str, value, help_text: str | None = None) -> None:
     st.metric(label, value, help=help_text)
+
+
+def format_datetime(value) -> str:
+    if value is None:
+        return "-"
+    return str(value)

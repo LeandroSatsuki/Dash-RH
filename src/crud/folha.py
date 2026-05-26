@@ -74,6 +74,23 @@ def _build_snapshot(db: Session, competencia_id: int, usuario_id: int | None = N
 
 
 def fechar_competencia(db: Session, competencia_id: int, usuario_id: int | None = None):
+    from src.crud import workflows as crud_workflows
+    from src.db.models import ConfiguracaoSistema
+    from src.services import workflow_service
+
+    exigir_aprovacao = db.scalar(select(ConfiguracaoSistema).where(ConfiguracaoSistema.chave == "exigir_aprovacao_fechamento_folha"))
+    if exigir_aprovacao is not None and str(exigir_aprovacao.valor).lower() == "true":
+        instancia = crud_workflows.buscar_instancia_por_entidade(db, "competencia_folha", competencia_id)
+        if instancia is None or instancia.status != "concluido":
+            workflow_service.request_approval_for_entity(
+                db,
+                modulo="folha",
+                entidade_tipo="competencia_folha",
+                entidade_id=competencia_id,
+                solicitante_id=usuario_id,
+                comentario="Solicitacao de fechamento de folha.",
+            )
+            raise ValueError("Fechamento de folha requer aprovacao previa.")
     competencia = buscar_competencia(db, competencia_id)
     updated = update_record(
         db,
@@ -88,6 +105,16 @@ def fechar_competencia(db: Session, competencia_id: int, usuario_id: int | None 
 
 def reabrir_competencia(db: Session, competencia_id: int, usuario_id: int | None = None):
     updated = update_record(db, buscar_competencia(db, competencia_id), {"status": "reaberta"}, usuario_id)
+    from src.services import workflow_service
+
+    workflow_service.request_approval_for_entity(
+        db,
+        modulo="folha",
+        entidade_tipo="reabertura_competencia_folha",
+        entidade_id=competencia_id,
+        solicitante_id=usuario_id,
+        comentario="Solicitacao de reabertura de folha.",
+    )
     log_action(db, tabela="competencias_folha", acao="reabrir_competencia", registro_id=updated.id, usuario_id=usuario_id, origem="folha", valor_novo={"competencia": updated.competencia})
     return updated
 
