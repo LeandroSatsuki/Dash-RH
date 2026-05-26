@@ -7,20 +7,63 @@ import pandas as pd
 import streamlit as st
 
 from src.dashboard.charts import bar_chart, heatmap, line_chart, pareto_chart, scatter_chart, table_figure
+from src.utils.numbers import ensure_numeric_columns
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
 REPORTS_DIR = PROJECT_ROOT / "reports"
 
+DATASET_NUMERIC_COLUMNS = {
+    "fato_indicadores_mensais": ["ano", "mes_num", "valor"],
+    "fato_movimentacao": ["admissoes", "desligamentos", "efetivo_inicial", "efetivo_final", "efetivo_medio", "turnover"],
+    "fato_absenteismo": [
+        "afastamentos_dias",
+        "faltas_dias",
+        "ferias_dias",
+        "dias_uteis",
+        "dias_programados",
+        "dias_produtivos",
+        "dias_nao_produtivos",
+        "horas_programadas",
+        "horas_nao_produtivas",
+        "taxa_absenteismo",
+    ],
+    "fato_custo_mensal": [
+        "valor",
+        "faturamento",
+        "custo_total",
+        "percentual_custo_faturamento",
+        "meta",
+        "colaboradores",
+        "faturamento_por_colaborador",
+    ],
+    "fato_folha_mensal": [
+        "salario",
+        "premios",
+        "ajuda_custo",
+        "alimentacao",
+        "plano_saude",
+        "beneficios",
+        "encargos_inss",
+        "fgts",
+        "provisoes",
+        "total_geral",
+        "percentual_custo",
+        "faturamento_referencia",
+    ],
+}
+
 
 def load_dataset(name: str) -> pd.DataFrame:
     parquet_path = PROCESSED_DIR / f"{name}.parquet"
     csv_path = PROCESSED_DIR / f"{name}.csv"
     if parquet_path.exists():
-        return pd.read_parquet(parquet_path)
+        df = pd.read_parquet(parquet_path)
+        return ensure_numeric_columns(df, DATASET_NUMERIC_COLUMNS.get(name, []))
     if csv_path.exists():
-        return pd.read_csv(csv_path)
+        df = pd.read_csv(csv_path)
+        return ensure_numeric_columns(df, DATASET_NUMERIC_COLUMNS.get(name, []))
     return pd.DataFrame()
 
 
@@ -66,6 +109,7 @@ def fmt_num(value):
 
 
 def executive_page(indicators: pd.DataFrame, cost_df: pd.DataFrame):
+    indicators = ensure_numeric_columns(indicators, ["valor"])
     st.subheader("Visão Executiva")
     cols = st.columns(5)
     metrics = [
@@ -99,6 +143,11 @@ def executive_page(indicators: pd.DataFrame, cost_df: pd.DataFrame):
 
 
 def headcount_page(mov_df: pd.DataFrame, indicators: pd.DataFrame):
+    mov_df = ensure_numeric_columns(
+        mov_df,
+        ["admissoes", "desligamentos", "efetivo_inicial", "efetivo_final", "efetivo_medio", "turnover"],
+    )
+    indicators = ensure_numeric_columns(indicators, ["valor"])
     st.subheader("Headcount e Movimentação")
     if mov_df.empty:
         st.info("Sem dados de movimentação.")
@@ -133,6 +182,22 @@ def headcount_page(mov_df: pd.DataFrame, indicators: pd.DataFrame):
 
 
 def absenteismo_page(abs_df: pd.DataFrame, indicators: pd.DataFrame):
+    abs_df = ensure_numeric_columns(
+        abs_df,
+        [
+            "afastamentos_dias",
+            "faltas_dias",
+            "ferias_dias",
+            "dias_uteis",
+            "dias_programados",
+            "dias_produtivos",
+            "dias_nao_produtivos",
+            "horas_programadas",
+            "horas_nao_produtivas",
+            "taxa_absenteismo",
+        ],
+    )
+    indicators = ensure_numeric_columns(indicators, ["valor"])
     st.subheader("Absenteísmo")
     if abs_df.empty:
         st.info("Sem dados de absenteísmo.")
@@ -175,6 +240,11 @@ def absenteismo_page(abs_df: pd.DataFrame, indicators: pd.DataFrame):
 
 
 def folha_custo_page(indicators: pd.DataFrame, cost_df: pd.DataFrame):
+    indicators = ensure_numeric_columns(indicators, ["valor"])
+    cost_df = ensure_numeric_columns(
+        cost_df,
+        ["valor", "faturamento", "custo_total", "percentual_custo_faturamento", "meta", "colaboradores", "faturamento_por_colaborador"],
+    )
     st.subheader("Folha e Custo")
     folha = indicators[indicators["indicador"].isin(["Folha Bruta (R$)", "Folha Líquida (R$)", "Custo Total"])].copy()
     if not folha.empty:
@@ -207,6 +277,7 @@ def folha_custo_page(indicators: pd.DataFrame, cost_df: pd.DataFrame):
 
 
 def encargos_page(indicators: pd.DataFrame):
+    indicators = ensure_numeric_columns(indicators, ["valor"])
     st.subheader("Encargos e Tributos")
     enc = indicators[indicators["indicador"].isin(["FGTS", "INSS Patronal", "Valor de Tributos", "Encargos sobre a Folha (%)"])].copy()
     if enc.empty:
@@ -222,6 +293,11 @@ def encargos_page(indicators: pd.DataFrame):
 
 
 def comercial_page(indicators: pd.DataFrame, cost_df: pd.DataFrame):
+    indicators = ensure_numeric_columns(indicators, ["valor"])
+    cost_df = ensure_numeric_columns(
+        cost_df,
+        ["valor", "faturamento", "custo_total", "percentual_custo_faturamento", "meta", "colaboradores", "faturamento_por_colaborador"],
+    )
     st.subheader("Comercial")
     commercial = indicators[indicators["area"].isin(["Comercial", "Geral"])].copy()
     if commercial.empty:
@@ -251,6 +327,11 @@ def comercial_page(indicators: pd.DataFrame, cost_df: pd.DataFrame):
 
 
 def fabril_page(indicators: pd.DataFrame, cost_df: pd.DataFrame):
+    indicators = ensure_numeric_columns(indicators, ["valor"])
+    cost_df = ensure_numeric_columns(
+        cost_df,
+        ["valor", "faturamento", "custo_total", "percentual_custo_faturamento", "meta", "colaboradores", "faturamento_por_colaborador"],
+    )
     st.subheader("Fábrica / Fabril")
     fab = indicators[indicators["area"].eq("Fábrica")].copy()
     if fab.empty:

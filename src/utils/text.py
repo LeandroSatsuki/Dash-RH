@@ -3,10 +3,11 @@ from __future__ import annotations
 import math
 import re
 import unicodedata
-from datetime import timedelta
 from typing import Any
 
 import numpy as np
+
+from src.utils.numbers import to_number
 
 MONTH_ALIASES = {
     "jan": (1, "Janeiro"),
@@ -262,27 +263,6 @@ def is_error_value(value: Any) -> bool:
 def error_type(value: Any) -> str | None:
     if is_error_value(value):
         return str(value).strip()
-    return None
-
-
-def to_number(value: Any) -> float | None:
-    if value is None or value == "":
-        return None
-    if isinstance(value, timedelta):
-        return value.total_seconds() / 3600
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        if math.isnan(value) or math.isinf(value):
-            return None
-        return float(value)
-    if isinstance(value, str):
-        text = value.strip()
-        if not text or is_error_value(text):
-            return None
-        text = text.replace("R$", "").replace(".", "").replace(",", ".")
-        try:
-            return float(text)
-        except ValueError:
-            return None
     return None
 
 

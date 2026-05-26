@@ -1,57 +1,132 @@
-# Projeto RH / Folha de Pagamento
+# Dash-RH Operacional
 
-Projeto Python para ingestão auditável de planilhas Excel de RH/Folha, geração de fatos normalizados, relatório de qualidade e dashboard executivo em Streamlit.
+Sistema hibrido de RH/DP com duas frentes:
 
-## Requisitos
+1. Dashboard legado e pipeline analitico por planilhas.
+2. Mini ERP operacional com banco de dados, autenticacao, CRUD, auditoria e importacao legada.
 
-- Python 3.11+
-- Dependências em `requirements.txt`
+## Objetivo
 
-## Instalação
+Reduzir a dependencia de planilhas para registros operacionais de RH/DP, mantendo compatibilidade com o legado e sem remover o dashboard atual.
+
+## Instalacao
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-## Onde colocar os arquivos
+## Ambiente
 
-- Coloque os `.xlsx` na raiz do projeto ou diretamente em `data/raw/`.
-- Ao rodar `python main.py`, o pipeline copia automaticamente os workbooks da raiz para `data/raw/` sem mover os originais.
+Crie um `.env` a partir de `.env.example`.
 
-## Execução do pipeline
+Exemplo para SQLite local:
+
+```env
+DATABASE_URL=sqlite:///./data/app/dash_rh.db
+APP_ENV=development
+SECRET_KEY=change-me
+UPLOAD_DIR=data/uploads
+ADMIN_NAME=Administrador
+ADMIN_EMAIL=admin@local.test
+ADMIN_PASSWORD=Admin@123
+```
+
+Exemplo para PostgreSQL:
+
+```env
+DATABASE_URL=postgresql+psycopg://dashrh_user:change-me@localhost:5432/dash_rh
+APP_ENV=production
+SECRET_KEY=troque-esta-chave
+UPLOAD_DIR=data/uploads
+ADMIN_NAME=Administrador
+ADMIN_EMAIL=admin@empresa.local
+ADMIN_PASSWORD=uma-senha-forte
+```
+
+## Banco e admin
+
+Inicializacao simples para desenvolvimento:
+
+```bash
+python -m src.db.init_db
+```
+
+Regras de seguranca do admin inicial:
+
+- Em `APP_ENV=development`, o sistema aceita fallback de `ADMIN_EMAIL` e `ADMIN_PASSWORD`.
+- Em qualquer ambiente fora de `development`, `ADMIN_PASSWORD` e obrigatoria.
+- Em `APP_ENV=production`, a senha `Admin@123` e bloqueada.
+- A senha nunca e impressa em logs.
+
+## Migracoes Alembic
+
+Gerar uma nova revisao:
+
+```bash
+alembic revision --autogenerate -m "initial schema"
+```
+
+Aplicar migracoes:
+
+```bash
+alembic upgrade head
+```
+
+Use `init_db` para bootstrap local rapido e `alembic` para ambientes compartilhados e controle versionado.
+
+## Pipeline legado
 
 ```bash
 python main.py
 ```
 
-## Abrir o dashboard
+## Dashboard legado
 
 ```bash
 streamlit run dashboard/app.py
 ```
 
-## Arquivos gerados
+## App operacional
 
-- `data/processed/catalogo_abas.csv`
-- `data/processed/erros_celulas.csv`
-- `data/processed/*.csv`
-- `data/processed/*.parquet`
-- `reports/qualidade_dados.md`
-- `reports/qualidade_dados.json`
-- `reports/dicionario_metricas.md`
-- `reports/resumo_executivo.html`
-- `reports/resumo_executivo.xlsx`
+```bash
+streamlit run operational_app/app.py
+```
 
-## Como interpretar os alertas
+O app operacional exige login antes de exibir paginas ou dados.
 
-- `Dado pendente / inconsistente`: o valor veio de célula com erro, referência quebrada, divisão por zero ou fonte insuficiente.
-- `calculado_pelo_pipeline`: o valor foi recalculado com regra explícita e rastreável.
-- `inferido_com_contexto`: o valor usa contexto forte do workbook, mas sem marcação explícita na aba.
+## API FastAPI
 
-## Limitações conhecidas
+```bash
+uvicorn src.api.main:app --reload
+```
 
-- Algumas abas mensais têm nomenclatura heterogênea e nem sempre trazem ano explícito.
-- Fórmulas antigas com `#REF!` e `#DIV/0!` não são corrigidas automaticamente.
-- Nem todas as abas separam afastamentos e faltas em colunas distintas.
-- Premiação MEI só é promovida a indicador quando a aba contém valores numéricos explícitos.
+Healthcheck:
 
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+## Fluxo de importacao
+
+1. Acesse o app operacional.
+2. Abra `Configuracoes`.
+3. Faca upload da planilha legada.
+4. Revise validacoes e erros.
+5. Execute a importacao.
+6. Consulte a auditoria e o relatorio final.
+
+## Testes e check local
+
+```bash
+pytest
+python scripts/check_local.py
+```
+
+## Seguranca e LGPD
+
+- Planilhas, uploads, bancos locais e `.env` permanecem fora do Git.
+- CPF, CNPJ, e-mail, telefone, salario e dados medicos permanecem mascarados por padrao.
+- Senhas usam hash seguro.
+- Alteracoes criticas e eventos de autenticacao sao auditados.
+- Uploads ficam restritos a `UPLOAD_DIR`, com extensoes permitidas e hash SHA256.
+- O modulo de eSocial gera apenas preparacao e validacao interna, sem envio oficial automatico.

@@ -1,5 +1,8 @@
 data/raw/
 data/processed/
+data/uploads/
+data/app/
+data/app/*.db
 *.xlsx
 *.xls
 *.xlsm
@@ -10,6 +13,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .streamlit/secrets.toml
+*.log
+desktop.ini
 reports/*.xlsx
 reports/*.csv
 reports/*.json

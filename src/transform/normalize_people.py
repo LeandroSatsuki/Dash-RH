@@ -7,7 +7,8 @@ import pandas as pd
 
 from src.extract.read_excel import worksheet_to_table
 from src.utils.excel_dates import competencia_from_date, convert_excel_date
-from src.utils.text import mask_document, mask_name, to_number
+from src.utils.numbers import to_number
+from src.utils.text import mask_document, mask_name
 
 
 def _find_base_file(raw_dir: str | Path) -> Path:

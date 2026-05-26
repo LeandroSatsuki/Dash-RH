@@ -7,6 +7,7 @@ import pandas as pd
 
 from src.extract.read_excel import load_workbook_pair
 from src.utils.excel_dates import competencia_from_date, convert_excel_date
+from src.utils.numbers import to_number
 from src.utils.text import (
     canonical_month,
     confidence_label,
@@ -16,7 +17,6 @@ from src.utils.text import (
     is_error_value,
     parse_month_year,
     sheet_year,
-    to_number,
 )
 
 

@@ -6,6 +6,7 @@ from typing import Any
 
 import pandas as pd
 
+from src.utils.numbers import ensure_numeric_columns
 from src.utils.text import safe_divide
 
 
@@ -33,6 +34,13 @@ def build_data_quality(
     fato_indicadores_mensais: pd.DataFrame,
 ) -> dict[str, Any]:
     issues: list[dict[str, Any]] = []
+    fato_indicadores_mensais = ensure_numeric_columns(fato_indicadores_mensais, ["valor"])
+    fato_custo_mensal = ensure_numeric_columns(
+        fato_custo_mensal, ["valor", "custo_total", "faturamento", "colaboradores"]
+    )
+    fato_movimentacao = ensure_numeric_columns(
+        fato_movimentacao, ["efetivo_inicial", "efetivo_final", "admissoes", "desligamentos"]
+    )
 
     if not fato_indicadores_mensais.empty:
         percent_df = fato_indicadores_mensais[

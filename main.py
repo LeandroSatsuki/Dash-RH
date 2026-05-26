@@ -15,6 +15,7 @@ from src.transform.normalize_indicators import extract_indicator_facts
 from src.transform.normalize_payroll import extract_payroll_facts
 from src.transform.normalize_people import extract_people_dimensions
 from src.transform.normalize_periods import build_period_dimension
+from src.utils.numbers import ensure_numeric_columns
 from src.utils.text import confidence_label, safe_divide
 from src.validate.quality import build_data_quality, write_quality_reports
 
@@ -23,6 +24,46 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 RAW_DIR = PROJECT_ROOT / "data" / "raw"
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
 REPORTS_DIR = PROJECT_ROOT / "reports"
+
+DATASET_NUMERIC_COLUMNS = {
+    "fato_indicadores_mensais": ["ano", "mes_num", "valor"],
+    "fato_movimentacao": ["admissoes", "desligamentos", "efetivo_inicial", "efetivo_final", "efetivo_medio", "turnover"],
+    "fato_absenteismo": [
+        "afastamentos_dias",
+        "faltas_dias",
+        "ferias_dias",
+        "dias_uteis",
+        "dias_programados",
+        "dias_produtivos",
+        "dias_nao_produtivos",
+        "horas_programadas",
+        "horas_nao_produtivas",
+        "taxa_absenteismo",
+    ],
+    "fato_custo_mensal": [
+        "valor",
+        "faturamento",
+        "custo_total",
+        "percentual_custo_faturamento",
+        "meta",
+        "colaboradores",
+        "faturamento_por_colaborador",
+    ],
+    "fato_folha_mensal": [
+        "salario",
+        "premios",
+        "ajuda_custo",
+        "alimentacao",
+        "plano_saude",
+        "beneficios",
+        "encargos_inss",
+        "fgts",
+        "provisoes",
+        "total_geral",
+        "percentual_custo",
+        "faturamento_referencia",
+    ],
+}
 
 
 def ensure_directories() -> None:
@@ -40,6 +81,9 @@ def stage_raw_files() -> None:
 def save_dataset(df: pd.DataFrame, name: str) -> None:
     csv_path = PROCESSED_DIR / f"{name}.csv"
     parquet_path = PROCESSED_DIR / f"{name}.parquet"
+    numeric_columns = DATASET_NUMERIC_COLUMNS.get(name, [])
+    if numeric_columns:
+        df = ensure_numeric_columns(df, numeric_columns)
     df.to_csv(csv_path, index=False, encoding="utf-8-sig")
     parquet_df = df.copy()
     for column in parquet_df.select_dtypes(include=["object", "string"]).columns:
@@ -120,6 +164,10 @@ def build_movimentacao(indicators: pd.DataFrame) -> pd.DataFrame:
     pivot["efetivo_final"] = _col("Efetivo Final (Un)")
     pivot["efetivo_medio"] = _col("Efetivo Médio")
     pivot["turnover"] = _col("Taxa de Turnover").combine_first(_col("Turnover"))
+    pivot = ensure_numeric_columns(
+        pivot,
+        ["admissoes", "desligamentos", "efetivo_inicial", "efetivo_final", "efetivo_medio", "turnover", "Colaboradores"],
+    )
     calculated = pivot["turnover"].isna()
     recalculated = pivot[calculated].apply(
         lambda row: safe_divide(
@@ -198,6 +246,21 @@ def build_absenteismo(indicators: pd.DataFrame) -> pd.DataFrame:
     pivot["horas_programadas"] = _col("Horas Programadas")
     pivot["horas_nao_produtivas"] = _col("Horas não Produtivas")
     pivot["taxa_absenteismo"] = _col("Taxa de Absenteísmo")
+    pivot = ensure_numeric_columns(
+        pivot,
+        [
+            "afastamentos_dias",
+            "faltas_dias",
+            "ferias_dias",
+            "dias_uteis",
+            "dias_programados",
+            "dias_produtivos",
+            "dias_nao_produtivos",
+            "horas_programadas",
+            "horas_nao_produtivas",
+            "taxa_absenteismo",
+        ],
+    )
     calc_mask = pivot["taxa_absenteismo"].isna()
     recalculated = pivot[calc_mask].apply(
         lambda row: safe_divide(row.get("horas_nao_produtivas"), row.get("horas_programadas"))
@@ -228,6 +291,10 @@ def build_absenteismo(indicators: pd.DataFrame) -> pd.DataFrame:
 
 
 def append_calculated_indicators(indicators: pd.DataFrame, movimentacao: pd.DataFrame) -> pd.DataFrame:
+    movimentacao = ensure_numeric_columns(
+        movimentacao,
+        ["admissoes", "desligamentos", "efetivo_inicial", "efetivo_final", "efetivo_medio", "turnover"],
+    )
     rows = []
     for _, row in movimentacao.iterrows():
         if pd.notna(row.get("efetivo_inicial")) and pd.notna(row.get("efetivo_final")):
@@ -461,6 +528,11 @@ def main() -> None:
     movimentacao = build_movimentacao(indicators)
     absenteismo = build_absenteismo(indicators)
     indicators = append_calculated_indicators(indicators, movimentacao)
+    indicators = ensure_numeric_columns(indicators, DATASET_NUMERIC_COLUMNS["fato_indicadores_mensais"])
+    movimentacao = ensure_numeric_columns(movimentacao, DATASET_NUMERIC_COLUMNS["fato_movimentacao"])
+    absenteismo = ensure_numeric_columns(absenteismo, DATASET_NUMERIC_COLUMNS["fato_absenteismo"])
+    payroll = ensure_numeric_columns(payroll, DATASET_NUMERIC_COLUMNS["fato_folha_mensal"])
+    cost_df = ensure_numeric_columns(cost_df, DATASET_NUMERIC_COLUMNS["fato_custo_mensal"])
 
     if not cost_df.empty:
         extras = []

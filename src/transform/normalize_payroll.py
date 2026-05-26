@@ -6,7 +6,8 @@ from typing import Any
 import pandas as pd
 
 from src.extract.read_excel import load_workbook_pair
-from src.utils.text import detect_area_subarea, detect_sheet_type, is_error_value, parse_month_year, safe_divide, to_number
+from src.utils.numbers import to_number
+from src.utils.text import detect_area_subarea, detect_sheet_type, is_error_value, parse_month_year, safe_divide
 
 
 def _descriptor(ws, row: int, col: int) -> str:

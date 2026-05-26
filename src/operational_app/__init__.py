@@ -1,0 +1,1 @@
+# App operacional Streamlit.
