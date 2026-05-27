@@ -6,6 +6,7 @@ import importlib
 def _reload_init_modules(monkeypatch, db_url: str, app_env: str, admin_password: str | None):
     monkeypatch.setenv("DATABASE_URL", db_url)
     monkeypatch.setenv("APP_ENV", app_env)
+    monkeypatch.setenv("SECRET_KEY", "super-secret-key-2026")
     monkeypatch.setenv("ADMIN_EMAIL", "admin@test.local")
     if admin_password is None:
         monkeypatch.delenv("ADMIN_PASSWORD", raising=False)
@@ -52,6 +53,7 @@ def test_production_com_senha_forte_passa(monkeypatch, tmp_path):
 def test_production_sem_admin_email_falha(monkeypatch, tmp_path):
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'prod4.db'}")
     monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("SECRET_KEY", "super-secret-key-2026")
     monkeypatch.delenv("ADMIN_EMAIL", raising=False)
     monkeypatch.setenv("ADMIN_PASSWORD", "SenhaForte@2026")
     import src.db.database as database_module

@@ -1,0 +1,89 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dash_rh}
+      POSTGRES_USER: ${POSTGRES_USER:-dash_rh}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dash_rh} -d ${POSTGRES_DB:-dash_rh}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    env_file:
+      - .env
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - uploads_data:/app/data/uploads
+      - logs_data:/app/data/logs
+      - backups_data:/app/data/backups
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()\""]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+  operational_app:
+    build:
+      context: .
+      dockerfile: Dockerfile.operational
+    env_file:
+      - .env
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8501:8501"
+    volumes:
+      - uploads_data:/app/data/uploads
+      - logs_data:/app/data/logs
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    env_file:
+      - .env
+    restart: unless-stopped
+    ports:
+      - "8502:8502"
+    volumes:
+      - processed_data:/app/data/processed
+      - logs_data:/app/data/logs
+
+  backup:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    env_file:
+      - .env
+    profiles: ["tools"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["python", "scripts/backup_postgres.py"]
+    volumes:
+      - backups_data:/app/data/backups
+
+volumes:
+  postgres_data:
+  uploads_data:
+  logs_data:
+  backups_data:
+  processed_data:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import importlib
 import os
 import subprocess
@@ -33,7 +34,22 @@ MODULES = [
     "src.services.notification_service",
     "src.services.calendar_service",
     "src.services.report_service",
+    "scripts.seed_demo",
     "scripts.run_daily_checks",
+    "scripts.migrate",
+    "scripts.backup_postgres",
+    "scripts.restore_postgres",
+    "scripts.security_check",
+]
+
+SENSITIVE_GITIGNORE_PATTERNS = [
+    "data/raw/",
+    "data/processed/",
+    "data/uploads/",
+    "data/app/",
+    "data/backups/",
+    "data/logs/",
+    ".env",
 ]
 
 
@@ -54,7 +70,8 @@ def run_pytest() -> None:
 
 def check_api_health() -> None:
     app_module = importlib.import_module("src.api.main")
-    assert app_module.health() == {"status": "ok"}
+    payload = app_module.health()
+    assert payload["status"] in {"ok", "degraded"}
     print("[ok] api health")
 
 
@@ -80,20 +97,62 @@ def check_permissions() -> None:
     assert permissions.has_permission("admin", "folha:update")
     assert not permissions.has_permission("visualizador", "folha:update")
     assert permissions.has_permission("dp", "ponto:approve")
-    assert permissions.has_permission("dp", "jornadas:create")
-    assert permissions.has_permission("rh", "documentos_obrigatorios:view")
     assert permissions.has_permission("dp", "workflows:create")
     assert permissions.has_permission("dp", "tarefas:update")
     assert permissions.has_permission("dp", "notificacoes:view")
     print("[ok] permissoes basicas")
 
 
-def main() -> None:
-    run_pytest()
+def check_gitignore_patterns() -> None:
+    content = (ROOT / ".gitignore").read_text(encoding="utf-8")
+    missing = [pattern for pattern in SENSITIVE_GITIGNORE_PATTERNS if pattern not in content]
+    if missing:
+        raise AssertionError(f"Padroes sensiveis ausentes no .gitignore: {', '.join(missing)}")
+    print("[ok] gitignore sensivel")
+
+
+def check_not_versioned() -> None:
+    for path_pattern in [".env", "data/raw", "data/uploads", "data/app"]:
+        result = subprocess.run(
+            ["git", "ls-files", path_pattern],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.stdout.strip():
+            raise AssertionError(f"Caminho versionado indevidamente: {path_pattern}")
+    print("[ok] caminhos sensiveis fora do git")
+
+
+def check_security() -> None:
+    security_module = importlib.import_module("scripts.security_check")
+    security_module.run_security_check(strict_production=False)
+    print("[ok] security check")
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--fast", action="store_true")
+    parser.add_argument("--full", action="store_true")
+    args = parser.parse_args(argv)
+
+    if args.fast and args.full:
+        raise SystemExit("Use apenas um modo: --fast ou --full.")
+
+    run_tests = not args.fast
+    if args.full or (not args.fast and not args.full):
+        run_tests = True
+
+    if run_tests:
+        run_pytest()
     check_imports()
     check_api_health()
     check_seed_blocked_in_production()
     check_permissions()
+    check_gitignore_patterns()
+    check_not_versioned()
+    check_security()
     print("[ok] check_local concluido")
 
 

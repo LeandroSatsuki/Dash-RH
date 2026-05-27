@@ -10,12 +10,18 @@ if str(ROOT) not in sys.path:
 from src.db.database import SessionLocal
 from src.db.init_db import init_db
 from src.services.scheduler_rules import run_daily_checks
+from src.utils.logging_config import configure_logging, log_structured
+
+
+logger = configure_logging("daily_checks")
 
 
 def main() -> dict:
     init_db()
     with SessionLocal() as db:
+        log_structured(logger, 20, "inicio daily checks")
         result = run_daily_checks(db)
+    log_structured(logger, 20, "fim daily checks", result=result)
     print(result)
     return result
 

@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
+from src.utils.config import get_database_url
 
-def get_database_url() -> str:
-    return os.getenv("DATABASE_URL", "sqlite:///./data/app/dash_rh.db")
+
+def is_sqlite_url(database_url: str) -> bool:
+    return database_url.startswith("sqlite")
 
 
 def ensure_database_path(database_url: str) -> None:
@@ -23,7 +24,7 @@ def ensure_database_path(database_url: str) -> None:
 DATABASE_URL = get_database_url()
 ensure_database_path(DATABASE_URL)
 
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+connect_args = {"check_same_thread": False} if is_sqlite_url(DATABASE_URL) else {}
 engine = create_engine(DATABASE_URL, future=True, pool_pre_ping=True, connect_args=connect_args)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False, future=True)
 Base = declarative_base()

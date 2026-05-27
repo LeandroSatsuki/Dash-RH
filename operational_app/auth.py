@@ -6,7 +6,6 @@ from operational_app.common import db_session
 from src.auth.permissions import has_permission
 from src.auth.security import create_access_token
 from src.auth.users import authenticate_user
-from src.crud import notificacoes as crud_notificacoes
 from src.utils.config import is_development
 
 
@@ -46,7 +45,8 @@ def require_streamlit_login() -> dict | None:
             if user is None:
                 st.sidebar.error("Credenciais invalidas.")
             else:
-                unread = len(crud_notificacoes.listar(db, usuario_id=user.id, apenas_nao_lidas=True))
+                # Hotfix temporario: nao bloquear login por falha no modulo de notificacoes.
+                unread = 0
                 st.session_state["current_user"] = {"id": user.id, "nome": user.nome, "email": user.email, "perfil": user.perfil, "unread_notifications": unread}
                 st.session_state["access_token"] = create_access_token({"user_id": user.id, "perfil": user.perfil, "email": user.email})
                 st.rerun()

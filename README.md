@@ -136,8 +136,44 @@ uvicorn src.api.main:app --reload
 
 ```bash
 pytest
-python scripts/check_local.py
+python scripts/check_local.py --full
 ```
+
+Validacoes rapidas:
+
+```bash
+python scripts/check_local.py --fast
+python scripts/security_check.py
+```
+
+## Deploy e operacao
+
+Docker:
+
+```bash
+docker compose build
+docker compose up -d
+docker compose logs -f
+docker compose down
+```
+
+Migracoes e operacao:
+
+```bash
+python scripts/migrate.py
+python scripts/backup_postgres.py
+python scripts/restore_postgres.py --file caminho --confirm
+python scripts/run_daily_checks.py
+```
+
+Documentacao operacional:
+
+- `docs/deploy-producao.md`
+- `docs/backup-restore.md`
+- `docs/variaveis-ambiente.md`
+- `docs/observabilidade-logs.md`
+- `docs/runbook-operacional.md`
+- `docs/deploy-nginx.md`
 
 ## Seguranca e LGPD
 

@@ -1,0 +1,10 @@
+services:
+  adminer:
+    image: adminer:latest
+    profiles: ["dev"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"

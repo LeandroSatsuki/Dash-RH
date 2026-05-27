@@ -12,8 +12,10 @@ from sqlalchemy.orm import Session
 from src.crud import ponto as crud_ponto
 from src.db.models import Colaborador, Importacao
 from src.services.audit_service import log_action
+from src.utils.logging_config import configure_logging, log_structured
 
 SUPPORTED_COLUMNS = {"matricula", "cpf", "nome", "data", "entrada", "saida_intervalo", "retorno_intervalo", "saida"}
+logger = configure_logging("importacao_ponto")
 
 
 @dataclass
@@ -44,6 +46,7 @@ def importar_marcacoes(
     origem: str = "importado_csv",
     sobrescrever_manual: bool = False,
 ) -> ImportacaoPontoResultado:
+    log_structured(logger, 20, "inicio importacao de ponto", arquivo=str(path), origem=origem, usuario_id=usuario_id)
     df = carregar_arquivo(path)
     erros: list[dict[str, Any]] = []
     importadas = 0
@@ -98,6 +101,7 @@ def importar_marcacoes(
         origem="ponto",
         valor_novo={"arquivo": importacao.nome_arquivo, "importadas": importadas, "erros": len(erros)},
     )
+    log_structured(logger, 20, "fim importacao de ponto", arquivo=str(path), importadas=importadas, erros=len(erros))
     return ImportacaoPontoResultado(total_linhas=len(df.index), importadas=importadas, erros=erros)
 
 

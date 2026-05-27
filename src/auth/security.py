@@ -4,13 +4,10 @@ import base64
 import hashlib
 import hmac
 import json
-import os
 import secrets
 from datetime import UTC, datetime, timedelta
 
-
-def get_secret_key() -> str:
-    return os.getenv("SECRET_KEY", "change-me")
+from src.utils.config import get_secret_key
 
 
 def hash_password(password: str, salt: str | None = None) -> str:

@@ -3,6 +3,8 @@ data/processed/
 data/uploads/
 data/app/
 data/app/*.db
+data/backups/
+data/logs/
 *.xlsx
 *.xls
 *.xlsm
